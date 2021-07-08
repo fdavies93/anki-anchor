@@ -4,10 +4,11 @@ from PyQt5.QtWidgets import QAction, QActionGroup, QMenu
 from anki.lang import _
 from aqt import mw
 from aqt.qt import *
+from .model import model
 
 class Gui_Manager():
     def __init__(self):
-        self.dialogs = {"Upload": a2n_Ui(), "Download": a2n_Ui(), "Settings": a2n_Ui()}
+        self.dialogs = {"Upload": Upload_Ui(), "Download": Download_Ui(), "Settings": Settings_Ui()}
 
     def load_menu(self):
         for k in self.dialogs:
@@ -39,6 +40,35 @@ class a2n_Ui(object):
     def show(self):
         self.setup_dialog(self.dialog)
         self.dialog.exec()
+
+class Upload_Ui(a2n_Ui):
+    def setup_dialog(self, dialog):
+        pass
+
+class Download_Ui(a2n_Ui):
+    def setup_dialog(self, dialog):
+        pass
+
+class Settings_Ui(a2n_Ui):
+    def setup_dialog(self, dialog):
+        dialog.setObjectName("dialog")
+        dialog.resize(640, 480)
+        dialog.widget = QWidget(dialog)
+        dialog.widget.setGeometry(QRect(0, 10, 640, 480))
+        dialog.widget.setObjectName("widget")
+        dialog.qvbox = QVBoxLayout(dialog.widget)
+        dialog.qvbox.setObjectName("qvbox")
+        dialog.api_key_text = QLineEdit(model.config["notion_key"],dialog.widget)
+        dialog.api_key_text.setObjectName("api_key_text")
+        dialog.savebutton = QPushButton("Save",dialog.widget)
+        dialog.savebutton.setObjectName("savebutton")
+        dialog.cancelbutton = QPushButton("Cancel",dialog.widget)
+        dialog.cancelbutton.setObjectName("cancelbutton")
+
+        for o in (dialog.api_key_text, dialog.savebutton, dialog.cancelbutton):
+            dialog.qvbox.addWidget(o)
+
+        QMetaObject.connectSlotsByName(dialog)
 
 def add_menu(path):
     if not hasattr(mw, 'custom_menus'):
@@ -93,4 +123,4 @@ def add_menu_item(path, text, func, keys=None, checkable=False, checked=False):
         mw.custom_menus[path].addAction(action)
 
 # ---------------------------
-gui_man = Gui_Manager()
+gui = Gui_Manager()
