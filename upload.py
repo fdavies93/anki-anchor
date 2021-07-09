@@ -114,7 +114,6 @@ class Upload_Ui(object):
         self.notion_database_select = QtWidgets.QComboBox(self.formLayoutWidget)
         self.notion_database_select.setObjectName("notion_database_select")
         self.formLayout.setWidget(0, QtWidgets.QFormLayout.FieldRole, self.notion_database_select)
-
         self.retranslateUi(Form)
         QtCore.QMetaObject.connectSlotsByName(Form)
 

@@ -1,6 +1,7 @@
 from aqt import mw
 from PyQt5.QtGui import QKeySequence
 from PyQt5.QtWidgets import QAction, QActionGroup, QMenu
+from PyQt5 import QtCore, QtGui, QtWidgets
 from anki.lang import _
 from aqt import mw
 from aqt.qt import *
@@ -11,11 +12,21 @@ from .settings import Settings_Ui
 
 class Gui_Manager():
     def __init__(self):
-        self.dialog_classes = {"Upload": Upload_Ui(), "Download": Download_Ui(), "Settings": Settings_Ui()}
+        # -------------------------------
+        # Boilerplate to hook up the GUI
+        # -------------------------------
+        # GUIs are tuples: [0] GUI setup class from QT creator, [1] Class to use
+        self.dialog_gui_classes = {"Upload": (Upload_Ui(), Upload_Dialog), "Download": (Download_Ui(), Download_Dialog), "Settings": (Settings_Ui(), Settings_Dialog)}
         self.dialogs = {}
-        for k in self.dialog_classes:
-            self.dialogs[k] = a2n_Dialog()
-            self.dialog_classes[k].setupUi(self.dialogs[k])
+        for k in self.dialog_gui_classes:
+            cur_custom_class = self.dialog_gui_classes[k][1]
+            cur_gui_obj = self.dialog_gui_classes[k][0]
+            self.dialogs[k] = cur_custom_class()
+            cur_gui_obj.setupUi(self.dialogs[k])
+            self.dialogs[k].setup_actions(cur_gui_obj)
+        # ------------------------------
+        # Boilerplate ends here
+        # ------------------------------
 
     def load_menu(self):
         for k in self.dialogs:
@@ -30,9 +41,31 @@ class Gui_Manager():
         return lambda _: form.exec()
 
 class a2n_Dialog(QDialog):
-     def __init__(self, parent=None):
+    def __init__(self, parent=None):
         self.parent = parent
         QDialog.__init__(self, parent, Qt.Window)
+
+    def setup_actions(self, form=None):
+        QtCore.QMetaObject.connectSlotsByName(self)
+
+class Upload_Dialog(a2n_Dialog):
+    def setup_actions(self, form):
+        form.cancel_button.clicked.connect(lambda _: close_form(self))
+        super().setup_actions(form)
+
+class Download_Dialog(a2n_Dialog):
+    def setup_actions(self, form):
+        form.cancel_button.clicked.connect(lambda _: close_form(self))
+        super().setup_actions(form)
+
+class Settings_Dialog(a2n_Dialog):
+    def setup_actions(self, form):
+        form.cancel_button.clicked.connect(lambda _: close_form(self))
+        super().setup_actions(form)
+
+
+def close_form(form):
+    form.close()
 
 def add_menu(path):
     if not hasattr(mw, 'custom_menus'):
