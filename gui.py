@@ -61,8 +61,13 @@ class Download_Dialog(a2n_Dialog):
 class Settings_Dialog(a2n_Dialog):
     def setup_actions(self, form):
         form.cancel_button.clicked.connect(lambda _: close_form(self))
+        form.api_key.setText( model.get_notion_key() )
+        form.save_button.clicked.connect(lambda _: self.save_key(form))
         super().setup_actions(form)
 
+    def save_key(self, form):
+        model.save_notion_key(form.api_key.text())
+        self.close()
 
 def close_form(form):
     form.close()
