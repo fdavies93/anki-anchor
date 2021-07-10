@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'settings.ui'
+# Form implementation generated from reading ui file './qt_ui/settings.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.4
 #
@@ -11,12 +11,16 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 
-class Settings_Ui(object):
+class Ui_main(object):
     def setupUi(self, main):
         main.setObjectName("main")
-        main.resize(640, 139)
+        main.resize(640, 163)
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(10)
+        main.setFont(font)
         self.horizontalLayoutWidget = QtWidgets.QWidget(main)
-        self.horizontalLayoutWidget.setGeometry(QtCore.QRect(20, 60, 601, 61))
+        self.horizontalLayoutWidget.setGeometry(QtCore.QRect(20, 90, 601, 61))
         self.horizontalLayoutWidget.setObjectName("horizontalLayoutWidget")
         self.horizontalLayout = QtWidgets.QHBoxLayout(self.horizontalLayoutWidget)
         self.horizontalLayout.setContentsMargins(0, 0, 0, 0)
@@ -30,7 +34,7 @@ class Settings_Ui(object):
         self.cancel_button.setObjectName("cancel_button")
         self.horizontalLayout.addWidget(self.cancel_button)
         self.formLayoutWidget = QtWidgets.QWidget(main)
-        self.formLayoutWidget.setGeometry(QtCore.QRect(20, 20, 601, 31))
+        self.formLayoutWidget.setGeometry(QtCore.QRect(20, 20, 601, 59))
         self.formLayoutWidget.setObjectName("formLayoutWidget")
         self.formLayout = QtWidgets.QFormLayout(self.formLayoutWidget)
         self.formLayout.setContentsMargins(0, 0, 0, 0)
@@ -43,6 +47,15 @@ class Settings_Ui(object):
         self.api_key = QtWidgets.QLineEdit(self.formLayoutWidget)
         self.api_key.setObjectName("api_key")
         self.formLayout.setWidget(0, QtWidgets.QFormLayout.FieldRole, self.api_key)
+        self.label_3 = QtWidgets.QLabel(self.formLayoutWidget)
+        self.label_3.setObjectName("label_3")
+        self.formLayout.setWidget(1, QtWidgets.QFormLayout.LabelRole, self.label_3)
+        self.comboBox = QtWidgets.QComboBox(self.formLayoutWidget)
+        self.comboBox.setObjectName("comboBox")
+        self.comboBox.addItem("")
+        self.comboBox.addItem("")
+        self.comboBox.addItem("")
+        self.formLayout.setWidget(1, QtWidgets.QFormLayout.FieldRole, self.comboBox)
 
         self.retranslateUi(main)
         QtCore.QMetaObject.connectSlotsByName(main)
@@ -53,3 +66,7 @@ class Settings_Ui(object):
         self.save_button.setText(_translate("main", "Save"))
         self.cancel_button.setText(_translate("main", "Cancel"))
         self.label.setText(_translate("main", "Notion API Key"))
+        self.label_3.setText(_translate("main", "Default Merge Mode"))
+        self.comboBox.setItemText(0, _translate("main", "Append"))
+        self.comboBox.setItemText(1, _translate("main", "Soft Merge"))
+        self.comboBox.setItemText(2, _translate("main", "Hard Merge"))
