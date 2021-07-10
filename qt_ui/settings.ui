@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>main</class>
- <widget class="QWidget" name="main">
+ <class>settings</class>
+ <widget class="QWidget" name="settings">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -85,7 +85,7 @@
      </widget>
     </item>
     <item row="1" column="1">
-     <widget class="QComboBox" name="comboBox">
+     <widget class="QComboBox" name="merge_mode">
       <item>
        <property name="text">
         <string>Append</string>
