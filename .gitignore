@@ -2,3 +2,4 @@ scripts
 .DS_STORE
 examples
 config.json
+__pycache__
