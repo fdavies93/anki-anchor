@@ -39,7 +39,7 @@ class Gui_Manager():
         mw.custom_menus.clear()
 
     def show_form_factory(self, dialog, form):
-        return lambda _: self.show_form_template(dialog, form)
+        return lambda: self.show_form_template(dialog, form)
 
     def show_form_template(self, dialog, form):
         dialog.setup_gui(form)
@@ -65,7 +65,7 @@ class a2n_Dialog(QDialog):
 
 class Upload_Dialog(a2n_Dialog):
     def _setup_actions(self, form):
-        form.cancel_button.clicked.connect(lambda _: close_form(self))
+        form.cancel_button.clicked.connect(lambda: close_form(self))
         super().setup_actions(form)
 
     def setup_gui(self, form):
@@ -73,7 +73,7 @@ class Upload_Dialog(a2n_Dialog):
 
 class Download_Dialog(a2n_Dialog):
     def _setup_actions(self, form):
-        form.cancel_button.clicked.connect(lambda _: close_form(self))
+        form.cancel_button.clicked.connect(lambda: close_form(self))
         super().setup_actions(form)
 
     def setup_gui(self, form):
@@ -81,8 +81,8 @@ class Download_Dialog(a2n_Dialog):
 
 class Settings_Dialog(a2n_Dialog):
     def _setup_actions(self, form):
-        form.cancel_button.clicked.connect(lambda _: close_form(self))
-        form.save_button.clicked.connect(lambda _: self.save_key(form))
+        form.cancel_button.clicked.connect(lambda: close_form(self))
+        form.save_button.clicked.connect(lambda: self.save_key(form))
         super().setup_actions(form)
 
     def setup_gui(self, form):
