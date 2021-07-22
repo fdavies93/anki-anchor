@@ -3,6 +3,7 @@ from abc import ABC
 from functools import reduce
 from typing import Text
 import requests
+from dataclasses import dataclass
 
 class BearerAuth(requests.auth.AuthBase):
     def __init__(self, token):
@@ -21,6 +22,12 @@ class COLUMN_TYPE(Enum):
     SELECT = 1 # Notion select field
     MULTI_SELECT = 2 # Notion multi-select / Anki tags field
     DATE = 3 # Notion date field
+
+@dataclass
+class RecordReadDataType:
+    columns: list
+    records: list
+    iterator: str
 
 class SourceReader(ABC):
     '''Read data from some source and turn it into a Python record.'''
@@ -76,16 +83,36 @@ class NotionWriter(SourceWriter):
 
 class NotionReader(SourceReader):
     '''Read records from Notion.'''
+    def __init__(self) -> None:
+        self.type_map = {
+            "title": COLUMN_TYPE.TEXT,
+            "rich_text": COLUMN_TYPE.TEXT,
+            "multi_select": COLUMN_TYPE.MULTI_SELECT,
+            "date": COLUMN_TYPE.DATE,
+            "created_time": COLUMN_TYPE.DATE
+        }
+        self.read_strategies = {
+            'title': self._map_notion_text,
+            'rich_text': self._map_notion_text,
+            'multi_select': self._map_notion_multiselect,
+            'date': self._map_notion_date,
+            'created_time': self._map_notion_created_time
+        }
+
     def get_databases(self, api_key):
         res = requests.get("https://api.notion.com/v1/databases", auth=BearerAuth(api_key), headers={"Notion-Version": "2021-05-13"})
         json = res.json()
         return [self._parse_database_result(x) for x in json["results"]]
 
-    def get_records(self, api_key: str, id: str, number=100, iterator=None):
+    def get_records(self, api_key: str, id: str, column_info: dict, number=100, iterator=None) -> RecordReadDataType:
         url = f"https://api.notion.com/v1/databases/{id}/query"
-        res = requests.post(url, auth=BearerAuth(api_key), headers={"Notion-Version": "2021-05-13"})
+        data = {"page_size": number}
+        if iterator is not None: data["start_cursor"] = iterator
+        res = requests.post(url, json=data, auth=BearerAuth(api_key), headers={"Notion-Version": "2021-05-13"})
         json = res.json()
-        return json
+        it = json["next_cursor"]
+        records = [ self._map_record(record, column_info) for record in json["results"] ]
+        return RecordReadDataType(column_info, records, it)
 
     def get_record_types(self):
         pass
@@ -100,19 +127,44 @@ class NotionReader(SourceReader):
         return {'name': result["title"][0]["text"]["content"], 'id': result["id"]}
 
     def _map_column(self, column_name, column):
-        type_map = {
-            "rich_text": COLUMN_TYPE.TEXT,
-            "multi_select": COLUMN_TYPE.MULTI_SELECT,
-            "date": COLUMN_TYPE.DATE,
-            "created_time": COLUMN_TYPE.DATE
-        }
-        if column["type"] in type_map:
-            col_type = type_map[column["type"]]
+        if column["type"] in self.type_map:
+            col_type = self.type_map[column["type"]]
         else:
             col_type = COLUMN_TYPE.TEXT
         return {"type": col_type, "name": column_name}
-        
+    
+    def _map_record(self, record:dict, columns:list):
+        out_dict = {}
+        column_names = [ col['name'] for col in columns ]
+        for k in column_names:
+            if k in record["properties"]:
+                v = record["properties"][k]
+                prop_type = v["type"]
+                if prop_type in self.read_strategies:
+                    # print (f"{prop_type} is in read strategies.")
+                    out_dict[k] = self.read_strategies[prop_type](v)
+                else: out_dict[k] = None # If we don't know how to handle the type, just return null.
+            else:
+                out_dict[k] = None
+        return out_dict
 
+    def _map_notion_text(self, prop):
+        # Database text properties might be of different types (title etc), so 
+        # we get the type before looking for the content; database properties only
+        # ever contain a single block, so we're safe to look at index [0]
+        type = prop["type"] 
+        if (len(prop[type]) > 0):
+            return prop[type][0]["plain_text"]
+        else: return ""
+
+    def _map_notion_date(self, prop):
+        return prop["date"]
+
+    def _map_notion_multiselect(self, prop):
+        return [ r["name"] for r in prop["multi_select"] ]
+
+    def _map_notion_created_time(self, prop):
+        return prop["created_time"]
 
 
 def AnkiReadWriter() -> SourceReadWriter:

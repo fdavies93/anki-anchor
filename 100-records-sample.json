@@ -1,0 +1,2 @@
+[{'type': <COLUMN_TYPE.TEXT: 0>, 'name': 'English'}, {'type': <COLUMN_TYPE.MULTI_SELECT: 2>, 'name': 'Subtags'}, {'type': <COLUMN_TYPE.MULTI_SELECT: 2>, 'name': 'Tags'}, {'type': <COLUMN_TYPE.DATE: 3>, 'name': 'Timestamp'}, {'type': <COLUMN_TYPE.TEXT: 0>, 'name': 'Pinyin'}, {'type': <COLUMN_TYPE.TEXT: 0>, 'name': 'Examples & Usage'}, {'type': <COLUMN_TYPE.DATE: 3>, 'name': 'Last Created'}, {'type': <COLUMN_TYPE.TEXT: 0>, 'name': 'Zhuyin'}, {'type': <COLUMN_TYPE.TEXT: 0>, 'name': 'Hanzi'}]
+21f519a7-05da-4e96-8dde-3de1aa4e0e1f
