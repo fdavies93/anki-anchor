@@ -11,19 +11,19 @@ class BearerAuth(requests.auth.AuthBase):
         r.headers["authorization"] = "Bearer " + self.token
         return r
 
-def test_notion_read(config):
+def test_notion_get_databases(config):
     nr = NotionReader()
     database_info = nr.get_databases(config["notion_key"])
-    print(json.dumps(database_info, indent=4))
+    return database_info
 
 def test_notion_get_columns(config):
     nr = NotionReader()
     dbs = nr.get_databases(config["notion_key"])
     myId = dbs[0]["id"]
     columns_info = nr.get_columns(config["notion_key"],myId)
-    print(columns_info)
+    return columns_info
 
-def test_notion_get_records(config):
+def test_notion_get_records(config) -> RecordReadDataType:
     nr = NotionReader()
     dbs = nr.get_databases(config["notion_key"])
     myId = dbs[0]["id"]
@@ -37,14 +37,16 @@ def test_notion_get_records(config):
         cur_records = nr.get_records(config["notion_key"], myId, column_info, iterator=cur_records.iterator)
         record_set.extend(cur_records.records)
         it += 1
-    print(json.dumps(record_set, indent=4))
+    return RecordReadDataType(column_info, record_set, None)
 
 def main():
     fh = open("./config.json", "r")
     config = load(fh)
-    # test_notion_read(config)
+    # dbs = test_notion_get_databases(config)
+    # print(json.dumps(dbs, indent=4))
     # test_notion_get_columns(config)
-    test_notion_get_records(config)
+    records = test_notion_get_records(config)
+    print(json.dumps(records.records, indent = 4))
 
 if __name__ == "__main__":
     main()

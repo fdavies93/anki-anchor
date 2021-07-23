@@ -14,8 +14,9 @@ class BearerAuth(requests.auth.AuthBase):
 
 class MERGE_TYPE(Enum):
     APPEND = 0
-    SOFT_MERGE = 1
-    HARD_MERGE = 2
+    APPEND_NO_DUPLICATES = 1
+    SOFT_MERGE = 2
+    HARD_MERGE = 3
 
 class COLUMN_TYPE(Enum):
     TEXT = 0 # Most Anki fields; Notion tag field
@@ -100,7 +101,8 @@ class NotionReader(SourceReader):
         }
 
     def get_databases(self, api_key):
-        res = requests.get("https://api.notion.com/v1/databases", auth=BearerAuth(api_key), headers={"Notion-Version": "2021-05-13"})
+        data = { "filter": {"property": "object", "value": "database"} }
+        res = requests.post("https://api.notion.com/v1/search", json=data, auth=BearerAuth(api_key), headers={"Notion-Version": "2021-05-13"})
         json = res.json()
         return [self._parse_database_result(x) for x in json["results"]]
 

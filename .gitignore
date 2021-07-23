@@ -3,4 +3,4 @@ scripts
 examples
 config.json
 __pycache__
-output
+test_output
