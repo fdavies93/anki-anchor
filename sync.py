@@ -2,8 +2,15 @@ from enum import Enum
 from abc import ABC
 from functools import reduce
 from typing import Text
+from anki.cards import Card
+from anki.models import NoteType
+from anki.notes import Note
 import requests
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from aqt import mw
+from aqt.utils import showInfo, qconnect
+from aqt.qt import *
+from re import sub
 
 class BearerAuth(requests.auth.AuthBase):
     def __init__(self, token):
@@ -29,6 +36,11 @@ class RecordReadDataType:
     columns: list
     records: list
     iterator: str
+
+@dataclass
+class Column:
+    type: COLUMN_TYPE
+    name: str
 
 class SourceReader(ABC):
     '''Read data from some source and turn it into a Python record.'''
@@ -69,14 +81,40 @@ class AnkiWriter(SourceWriter):
 
 class AnkiReader(SourceReader):
     '''Read records from Anki.'''
-    def get_databases():
-        pass
+    def get_databases(self):
+        '''Returns a list of note types and decks.'''
+        note_types = mw.col.models.all_names_and_ids()
+        decks = mw.col.decks.all_names_and_ids(include_filtered=False)
+        return {"note_types": note_types, "decks": decks}
 
-    def get_record_types():
-        pass
+    def get_columns(self, note_type: NoteType):
+        nt = mw.col.models.get(note_type["id"])
+        field_names = mw.col.models.fieldNames(nt)
+        return [ self._field_to_column(fn) for fn in field_names ]
 
-    def get_columns():
-        pass
+    def get_records(self, deck_name, note_type_name: str, columns):
+        note_ids = mw.col.find_notes(f"deck:\"{deck_name}\" note:\"{note_type_name}\"")
+        records = [ self._note_to_record(mw.col.getNote(id)) for id in note_ids ]
+        # return RecordReadDataType(columns, records)
+        return records
+
+    def _field_to_column(self, fieldName: str):
+        if fieldName == "tags": type = COLUMN_TYPE.MULTI_SELECT
+        else: type = COLUMN_TYPE.TEXT
+        return Column(type, fieldName)
+
+    def _note_to_record(self, note: Note):
+        out_dict = {}
+        for k, v in note.items():
+            if k != "tags":
+                out_dict[k] = self._remove_html_basic(v)
+        out_dict["tags"] = note.tags
+        return out_dict
+
+    def _remove_html_basic(self, string: str):
+        # This is probably a bit hacky, but should be ok.
+        # Proper HTML handling requires an XML library.
+        return sub("<[^>]*>", "", string)
 
 class NotionWriter(SourceWriter):
     '''Write records to Notion.'''
@@ -177,6 +215,9 @@ def NotionReadWriter() -> SourceReadWriter:
 
 class SyncManager(object):
     '''Manages syncs between Notion and Anki.'''
+    def __init__(self) -> None:
+        self.notion_reader = NotionReader()
+        self.anki_reader = AnkiReader()
     # Must have options to perform a primary-key merge (overwrite / fill blanks) in addition to simple append
     # Modes
     # -- Append - just add the records from the other source to the current source.
@@ -215,6 +256,10 @@ class SyncManager(object):
         # ---- create a new record
         # ---- fill fields using mapping and source card
         pass
+
+    def get_anki_card_types(self):
+        ar = AnkiReader()
+        return ar.get_databases()
 
     def get_anki_fields(self, card_type):
 

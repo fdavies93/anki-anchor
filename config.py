@@ -24,7 +24,6 @@ from os.path import dirname, exists, join, realpath
 
 from aqt import mw
 
-
 class ConfigManager:
     default_path = join(dirname(realpath(__file__)), 'config.json')
     saved_path = join(dirname(realpath(__file__)), 'config_saved.json')

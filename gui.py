@@ -3,12 +3,14 @@ from PyQt5.QtGui import QKeySequence
 from PyQt5.QtWidgets import QAction, QActionGroup, QMenu
 from PyQt5 import QtCore, QtGui, QtWidgets
 from anki.lang import _
-from aqt import mw
+from aqt import mw, utils
 from aqt.qt import *
 from .model import model
 from .download import Ui_download
 from .upload import Ui_upload
 from .settings import Ui_settings
+from os.path import dirname, exists, join, realpath
+from json import dump, load
 
 class Gui_Manager():
     def __init__(self):
@@ -32,6 +34,9 @@ class Gui_Manager():
     def load_menu(self):
         for k in self.dialogs:
             add_menu_item("anki2notion",k,self.show_form_factory(self.dialogs[k], self.dialog_gui_classes[k][0]))
+        if model.config["show_tests"]:
+            add_menu_item("anki2notion::Tests","Get Databases",self.test_get_databases)
+            add_menu_item("anki2notion::Tests","Get Records",self.test_get_records)
 
     def unload_menus(self):
         for menu in mw.custom_menus.values():
@@ -45,6 +50,20 @@ class Gui_Manager():
         dialog.setup_gui(form)
         dialog.setup_actions(form)
         dialog.exec()
+    
+    def test_get_databases(self):
+        types = model.sync.get_anki_card_types()
+        utils.showInfo( str(types[0]) )
+
+    def test_get_records(self):
+        saved_path = join(dirname(realpath(__file__)), 'anki_records.json')
+        note_name = "Chinese (basic) course-2a807"
+        deck_name = "Chinese"
+        nt = mw.col.models.byName(note_name)
+        cols = model.sync.anki_reader.get_columns(nt)
+        records = model.sync.anki_reader.get_records(deck_name, note_name, cols)
+        with open(saved_path, 'w', encoding='utf-8') as f:
+            f.write(str(records))
 
 class a2n_Dialog(QDialog):
     def __init__(self, parent=None):

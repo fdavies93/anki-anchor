@@ -4,6 +4,7 @@ from .sync import *
 class ModelManager():
     def __init__(self):
         self.load_config()
+        self.sync = sync
 
     def load_config(self):
         self.config = ConfigManager()
