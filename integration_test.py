@@ -23,7 +23,7 @@ def test_notion_get_columns(config):
     columns_info = nr.get_columns(config["notion_key"],myId)
     return columns_info
 
-def test_notion_get_records(config) -> RecordReadDataType:
+def test_notion_get_records(config) -> DataSet:
     nr = NotionReader()
     dbs = nr.get_databases(config["notion_key"])
     myId = dbs[0]["id"]
@@ -37,7 +37,7 @@ def test_notion_get_records(config) -> RecordReadDataType:
         cur_records = nr.get_records(config["notion_key"], myId, column_info, iterator=cur_records.iterator)
         record_set.extend(cur_records.records)
         it += 1
-    return RecordReadDataType(column_info, record_set, None)
+    return DataSet(column_info, record_set, None)
 
 def main():
     fh = open("./config.json", "r")

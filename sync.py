@@ -6,11 +6,11 @@ from anki.cards import Card
 from anki.models import NoteType
 from anki.notes import Note
 import requests
-from dataclasses import dataclass, field
 from aqt import mw
 from aqt.utils import showInfo, qconnect
 from aqt.qt import *
 from re import sub
+from dataset import *
 
 class BearerAuth(requests.auth.AuthBase):
     def __init__(self, token):
@@ -18,29 +18,6 @@ class BearerAuth(requests.auth.AuthBase):
     def __call__(self, r):
         r.headers["authorization"] = "Bearer " + self.token
         return r
-
-class MERGE_TYPE(Enum):
-    APPEND = 0
-    APPEND_NO_DUPLICATES = 1
-    SOFT_MERGE = 2
-    HARD_MERGE = 3
-
-class COLUMN_TYPE(Enum):
-    TEXT = 0 # Most Anki fields; Notion tag field
-    SELECT = 1 # Notion select field
-    MULTI_SELECT = 2 # Notion multi-select / Anki tags field
-    DATE = 3 # Notion date field
-
-@dataclass
-class RecordReadDataType:
-    columns: list
-    records: list
-    iterator: str
-
-@dataclass
-class Column:
-    type: COLUMN_TYPE
-    name: str
 
 class SourceReader(ABC):
     '''Read data from some source and turn it into a Python record.'''
@@ -101,7 +78,7 @@ class AnkiReader(SourceReader):
     def _field_to_column(self, fieldName: str):
         if fieldName == "tags": type = COLUMN_TYPE.MULTI_SELECT
         else: type = COLUMN_TYPE.TEXT
-        return Column(type, fieldName)
+        return DataColumn(type, fieldName)
 
     def _note_to_record(self, note: Note):
         out_dict = {}
@@ -144,7 +121,7 @@ class NotionReader(SourceReader):
         json = res.json()
         return [self._parse_database_result(x) for x in json["results"]]
 
-    def get_records(self, api_key: str, id: str, column_info: dict, number=100, iterator=None) -> RecordReadDataType:
+    def get_records(self, api_key: str, id: str, column_info: dict, number=100, iterator=None) -> DataSet:
         url = f"https://api.notion.com/v1/databases/{id}/query"
         data = {"page_size": number}
         if iterator is not None: data["start_cursor"] = iterator
@@ -152,7 +129,7 @@ class NotionReader(SourceReader):
         json = res.json()
         it = json["next_cursor"]
         records = [ self._map_record(record, column_info) for record in json["results"] ]
-        return RecordReadDataType(column_info, records, it)
+        return DataSet(column_info, records, it)
 
     def get_record_types(self):
         pass
