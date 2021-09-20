@@ -24,6 +24,7 @@ class TestDataSet(unittest.TestCase):
             DataColumn(COLUMN_TYPE.TEXT, "description"),
             DataColumn(COLUMN_TYPE.MULTI_SELECT, "tags")
         ]
+        
         self.advanced_cols = [
             DataColumn(COLUMN_TYPE.TEXT, "title"),
             DataColumn(COLUMN_TYPE.SELECT, "select"),
@@ -195,6 +196,68 @@ class TestDataSet(unittest.TestCase):
 
         cur_out = ds.change_data_type(test_date, COLUMN_TYPE.DATE, COLUMN_TYPE.TEXT)
         self.assertEqual(cur_out, test_date_str)
+
+    def test_add_column(self):
+
+        extra_cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "title"),
+            DataColumn(COLUMN_TYPE.TEXT, "description"),
+            DataColumn(COLUMN_TYPE.MULTI_SELECT, "tags"),
+            DataColumn(COLUMN_TYPE.TEXT, "test_column")
+        ]
+
+        none_test = [
+            {
+                "title": "record_1",
+                "description": "this is the first record",
+                "tags": ["0", "3", "5"],
+                "test_column": None
+            },
+            {
+                "title": "record_2",
+                "description": "this is the second record",
+                "tags": ["1", "2", "3"],
+                "test_column": None
+            }]
+
+        prefill_test = [
+            {
+                "title": "record_1",
+                "description": "this is the first record",
+                "tags": ["0", "3", "5"],
+                "test_column": [0,1,2,3]
+            },
+            {
+                "title": "record_2",
+                "description": "this is the second record",
+                "tags": ["1", "2", "3"],
+                "test_column": [0,1,2,3]
+            }]
+
+        ds = DataSet(self.cols)
+        ds.add_records(self.records[0:2])
+
+        test_col = DataColumn(COLUMN_TYPE.TEXT,"test_column")
+        ds.add_column(test_col)
+
+        ds2 = DataSet(extra_cols, records=none_test)
+        self.assertEqual(ds.records[0], ds2.records[0])
+        self.assertEqual(ds.records[1], ds2.records[1])
+
+        ###
+
+        ds = DataSet(self.cols)
+        ds.add_records(self.records[0:2])
+
+        test_col = DataColumn(COLUMN_TYPE.MULTI_SELECT,"test_column")
+        ds.add_column(test_col, [0,1,2,3])
+
+        ds2 = DataSet(extra_cols, records=prefill_test)
+        self.assertEqual(ds.records[0], ds2.records[0])
+        self.assertEqual(ds.records[1], ds2.records[1])
+
+
+        print(ds.records[1])
 
 if __name__ == '__main__':
     unittest.main()

@@ -16,7 +16,8 @@ class COLUMN_TYPE(Enum):
     DATE = 3 # Notion date field
 
 class COLUMN_ERROR_CODE(Enum):
-    COLUMN_NOT_FOUND = 0
+    COLUMN_NOT_FOUND = 0,
+    COLUMN_ALREADY_EXISTS = 1
 
 class ColumnError(ValueError):
     def __init__(self, error_code: COLUMN_ERROR_CODE, message="Column error."):
@@ -119,11 +120,24 @@ class DataSet:
     def rename_column(self, old_name, new_name):
         if old_name not in self._column_names:
             raise ColumnError(COLUMN_ERROR_CODE.COLUMN_NOT_FOUND)
+        if new_name in self._column_names:
+            raise ColumnError(COLUMN_ERROR_CODE.COLUMN_ALREADY_EXISTS)
         self._column_names[new_name] = self._column_names[old_name]
         self.columns[self._column_names[new_name]].name = new_name # rename the actual column object
         del self._column_names[old_name]
         for record in self.records:
             record._column_names = self._column_names
+
+    def add_column(self, column: DataColumn, default_val = None):
+        if column.name in self._column_names:
+            raise ColumnError(COLUMN_ERROR_CODE.COLUMN_ALREADY_EXISTS)
+        
+        self.columns.append(column)
+        self._column_names[column.name] = len(self.columns) - 1
+
+        for record in self.records:
+            record._column_names = self._column_names
+            record._fields[len(self.columns) - 1] = default_val
 
     def change_column_type(self, target_column, rename : str = None, in_place : bool = False):
 
