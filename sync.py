@@ -71,6 +71,7 @@ class AnkiReader(SourceReader):
 
     def get_records(self, deck_name, note_type_name: str, columns):
         note_ids = mw.col.find_notes(f"deck:\"{deck_name}\" note:\"{note_type_name}\"")
+        # note type MUST be consistent for 
         records = [ self._note_to_record(mw.col.getNote(id)) for id in note_ids ]
         # return RecordReadDataType(columns, records)
         return records

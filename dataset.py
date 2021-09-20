@@ -1,6 +1,7 @@
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Union
+from datetime import datetime
 
 class MERGE_TYPE(Enum):
     APPEND = 0
@@ -42,27 +43,42 @@ class DataRecord:
             col_i = self._column_names[col_name]
             record_dict[col_name] = self._fields[col_i]
         return record_dict
-    
-class DataSet:
-    columns: list
-    records: list
-    iterator: str
-    _column_names: dict # ties name to index
 
-    def __init__(self,columns:list,records:list=[]):
+class DataSet:
+
+    def __init__(self,columns:list,records:list=[],format={"multiselect_delimiter": ",", "time_format": "%b %d, %Y %I:%M %p"}):
         # columns is always a list of DataColumns
         # records can be a list of dicts
+        # default time format is identical to Notion's
         self.columns = []
         self.records = []
         self._column_names = {}
+        self.format = format
         for i in range(0,len(columns)):
             col = columns[i]
             new_col = DataColumn(col.type,col.name)
             self._column_names[col.name] = i
             self.columns.append(new_col)
-        
+
         for r in records:
             self.add_record(r)
+
+        self.CONVERT_DICT = {
+            COLUMN_TYPE.TEXT: {
+                COLUMN_TYPE.DATE: self._text_to_date,
+                COLUMN_TYPE.SELECT: self._text_to_select,
+                COLUMN_TYPE.MULTI_SELECT: self._text_to_multiselect,
+            },
+            COLUMN_TYPE.DATE: {
+                COLUMN_TYPE.TEXT: self._date_to_text
+            },
+            COLUMN_TYPE.SELECT: {
+                COLUMN_TYPE.TEXT: self._select_to_text
+            },
+            COLUMN_TYPE.MULTI_SELECT: {
+                COLUMN_TYPE.TEXT: self._multiselect_to_text
+            }
+        }
 
     def add_records(self, records:list) -> list:
         return [self.add_record(rec) for rec in records]
@@ -92,6 +108,14 @@ class DataSet:
         self.records.append(r)
         return r
 
+    def get_column_index(self, key):
+        if key not in self._column_names:
+            raise ColumnError(COLUMN_ERROR_CODE.COLUMN_NOT_FOUND)
+        return self._column_names[key]
+
+    def get_column(self, key):
+        return self.columns[self.get_column_index(key)]
+
     def rename_column(self, old_name, new_name):
         if old_name not in self._column_names:
             raise ColumnError(COLUMN_ERROR_CODE.COLUMN_NOT_FOUND)
@@ -100,14 +124,41 @@ class DataSet:
         del self._column_names[old_name]
         for record in self.records:
             record._column_names = self._column_names
-            
-    def get_column_index(self, key):
-        if key not in self._column_names:
-            raise ColumnError(COLUMN_ERROR_CODE.COLUMN_NOT_FOUND)
-        return self._column_names[key]
 
-    def get_column(self, key):
-        return self.columns[self.get_column_index(key)]
+    def change_column_type(self, target_column, rename : str = None, in_place : bool = False):
+
+        pass
+
+    # here we're changing data type in the INTERNAL representation
+    def change_data_type(self, input: object, input_type : COLUMN_TYPE, output_type: COLUMN_TYPE):
+        if input_type not in self.CONVERT_DICT:
+            return None
+        if output_type not in self.CONVERT_DICT[input_type]:
+            return None
+
+        return self.CONVERT_DICT[input_type][output_type](input)
+
+    def _text_to_select(self, txt):
+        return txt 
+        # difference between select and text is largely determined by external (i.e. data source) representations, not the data itself
+
+    def _text_to_multiselect(self, txt:str):
+        return txt.split(self.format["multiselect_delimiter"])
+
+    def _text_to_date(self, txt):
+        return datetime.strptime(txt,self.format["time_format"])
+
+    def _date_to_text(self, date):
+        return datetime.strftime(date, self.format["time_format"])
+
+    def _multiselect_to_text(self, multi_select: list):
+        return self.format["multiselect_delimiter"].join(multi_select)
+
+    def _select_to_text(self, select):
+        return select
+        # difference between select and text is largely determined by external (i.e. data source) representations, not the data itself
+
+    
 
 def select_first_or_only(input):
     if isinstance(input, list):

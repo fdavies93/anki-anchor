@@ -10,12 +10,6 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from .gui import gui
 from .model import model
 
-def notion_upload():
-    pass
-
-def notion_download():
-    pass
-
 addHook('profileLoaded', gui.load_menu)
 addHook('profileLoaded', model.load_config)
 addHook('unloadProfile', gui.unload_menus)

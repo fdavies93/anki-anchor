@@ -3,6 +3,7 @@ from dataset import *
 import unittest
 from os.path import dirname, exists, join, realpath
 import json
+from datetime import date, datetime
 
 def write_out(input,relative_path):
     saved_path = join(dirname(realpath(__file__)), relative_path)
@@ -22,6 +23,12 @@ class TestDataSet(unittest.TestCase):
             DataColumn(COLUMN_TYPE.TEXT, "title"),
             DataColumn(COLUMN_TYPE.TEXT, "description"),
             DataColumn(COLUMN_TYPE.MULTI_SELECT, "tags")
+        ]
+        self.advanced_cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "title"),
+            DataColumn(COLUMN_TYPE.SELECT, "select"),
+            DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            DataColumn(COLUMN_TYPE.DATE, "date")
         ]
         self.records = [
             {
@@ -158,6 +165,36 @@ class TestDataSet(unittest.TestCase):
 
         write_out(merge_soft.records,"./test_output/merge_soft.json")
         write_out(merge_hard.records,"./test_output/merge_hard.json")
+
+    def test_convert_types_correct(self):
+        test_format = {"multiselect_delimiter": ",", "time_format": "%b %d, %Y %I:%M %p"}
+        ds = DataSet(self.cols, format=test_format)
+
+        # Select
+        test_select_str = "select test"
+        cur_out = ds.change_data_type("select test", COLUMN_TYPE.TEXT, COLUMN_TYPE.SELECT)
+        self.assertEqual(test_select_str, cur_out) # no change as select validity is determined outside the scope of a dataset
+
+        # Multiselect
+        test_multiselect_str = "obj1,obj2,obj3,obj4,obj5"
+        test_multiselect_list = ["obj1","obj2","obj3","obj4","obj5"]
+
+        cur_out = ds.change_data_type(test_multiselect_str, COLUMN_TYPE.TEXT, COLUMN_TYPE.MULTI_SELECT)
+        self.assertListEqual(test_multiselect_list, cur_out)
+
+        cur_out = ds.change_data_type(test_multiselect_list, COLUMN_TYPE.MULTI_SELECT, COLUMN_TYPE.TEXT)
+        self.assertEqual(test_multiselect_str, cur_out)
+
+        # Dates
+
+        test_date_str = "Mar 23, 1994 12:01 PM"
+        test_date = datetime.strptime(test_date_str, test_format["time_format"])
+
+        cur_out = ds.change_data_type("Mar 23, 1994 12:01 PM", COLUMN_TYPE.TEXT, COLUMN_TYPE.DATE)
+        self.assertEqual(test_date, cur_out)
+
+        cur_out = ds.change_data_type(test_date, COLUMN_TYPE.DATE, COLUMN_TYPE.TEXT)
+        self.assertEqual(cur_out, test_date_str)
 
 if __name__ == '__main__':
     unittest.main()
