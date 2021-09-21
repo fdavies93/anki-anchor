@@ -378,6 +378,7 @@ class TestDataSet(unittest.TestCase):
         self.assertEqual(ds_text_2.column_to_list("date"), ds_internal.column_to_list("date_text") )
         self.assertEqual(ds_text_2.column_to_list("multiselect"), ds_internal.column_to_list("multiselect_text") )
         self.assertEqual(ds_text_2.column_to_list("select"), ds_internal.column_to_list("select_text") )
+        
 
         # failure cases
 
@@ -385,9 +386,47 @@ class TestDataSet(unittest.TestCase):
             ds_internal.change_column_type("date", COLUMN_TYPE.MULTI_SELECT, "not_allowed")
             self.assertEquals(ce.error_code, COLUMN_ERROR_CODE.COLUMN_TYPE_INCOMPATIBLE)
 
-        # malformed data cases
+    def test_convert_types_incorrect(self):
+        ds_internal_2 = DataSet(self.type_change_records_internal_cols)
+        ds_text_3 = DataSet(self.type_change_records_text_cols)
 
-        
+        text_list = [
+        {
+                "id": "0",
+                "date": "Mar 23, 1994 12:01 PM",
+                "multiselect": "0,1,2,3,4",
+                "select": "0",
+        },    
+        {
+                "id": "0",
+                "date": "Mar 23, 1994", # incorrect format
+                "multiselect": "0,1,2,3,4",
+                "select": "0",
+        }]
+
+        ds_text_3.add_records(text_list)
+
+        internal_list = [
+            {
+                "id": "0",
+                "date": datetime(1994, 3, 23, 12, 1),
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            },
+            {
+                "id": "0",
+                "date": None,
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            }
+        ]
+
+        ds_internal_2.add_records(internal_list)
+
+        report = ds_text_3.change_column_type("date", COLUMN_TYPE.DATE, "date_modified")
+
+        self.assertEqual(report.non_critical_errors,1)
+        self.assertEqual(ds_internal_2.column_to_list("date"),ds_text_3.column_to_list("date_modified"))
 
 if __name__ == '__main__':
     unittest.main()
