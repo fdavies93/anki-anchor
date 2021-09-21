@@ -17,12 +17,32 @@ class COLUMN_TYPE(Enum):
 
 class COLUMN_ERROR_CODE(Enum):
     COLUMN_NOT_FOUND = 0,
-    COLUMN_ALREADY_EXISTS = 1
+    COLUMN_ALREADY_EXISTS = 1,
+    COLUMN_TYPE_INCOMPATIBLE = 2
+
+class DATA_ERROR_CODE(Enum):
+    DATA_CANNOT_CONVERT = 0,
+    DATA_TYPE_INCOMPATIBLE = 1
+
+class OP_STATUS_CODE(Enum):
+    OP_SUCCESS = 0,
+    OP_FAILURE = 1
+
+class DataError(ValueError):
+    def __init__(self, error_code: DATA_ERROR_CODE, message="Data operation error."):
+        self.error_code = error_code
+        super().__init__(message)
 
 class ColumnError(ValueError):
     def __init__(self, error_code: COLUMN_ERROR_CODE, message="Column error."):
         self.error_code = error_code
         super().__init__(message)
+
+@dataclass
+class OperationStatus:
+    operation: str
+    status: OP_STATUS_CODE
+    non_critical_errors: int
 
 @dataclass
 class DataColumn:
@@ -37,6 +57,10 @@ class DataRecord:
     def __getitem__(self,key):
         i = self._column_names[key]
         return self._fields[i]
+
+    def __setitem__(self, key, value):
+        i = self._column_names[key]
+        self._fields[i] = value
 
     def asdict(self):
         record_dict = {}
@@ -92,6 +116,10 @@ class DataSet:
             r = self._add_record_from_dict(d)
         return r
 
+    def column_to_list(self, column_name) -> list:
+        if column_name not in self._column_names:
+            raise ColumnError(COLUMN_ERROR_CODE.COLUMN_NOT_FOUND)
+        return [ record[column_name] for record in self.records ]
 
     def record_to_dict(self, record:DataRecord):
         record_dict = {}
@@ -109,12 +137,12 @@ class DataSet:
         self.records.append(r)
         return r
 
-    def get_column_index(self, key):
+    def get_column_index(self, key) -> int:
         if key not in self._column_names:
             raise ColumnError(COLUMN_ERROR_CODE.COLUMN_NOT_FOUND)
         return self._column_names[key]
 
-    def get_column(self, key):
+    def get_column(self, key) -> DataColumn:
         return self.columns[self.get_column_index(key)]
 
     def rename_column(self, old_name, new_name):
@@ -139,18 +167,57 @@ class DataSet:
             record._column_names = self._column_names
             record._fields[len(self.columns) - 1] = default_val
 
-    def change_column_type(self, target_column, rename : str = None, in_place : bool = False):
+    def change_column_type(self, source_column : str, new_type : COLUMN_TYPE, new_column_name : str = None):
+        ''' Changes column type, modifying in-place by default or creating a new column if given a name. '''
+        if source_column not in self._column_names:
+            raise ColumnError(COLUMN_ERROR_CODE.COLUMN_NOT_FOUND)
 
-        pass
+        source_type = self.get_column(source_column).type
+
+        if source_type not in self.CONVERT_DICT:
+            raise ColumnError(COLUMN_ERROR_CODE.COLUMN_TYPE_INCOMPATIBLE)
+        if new_type not in self.CONVERT_DICT[source_type]:
+            raise ColumnError(COLUMN_ERROR_CODE.COLUMN_TYPE_INCOMPATIBLE)
+        if new_column_name in self._column_names:
+            raise ColumnError(COLUMN_ERROR_CODE.COLUMN_ALREADY_EXISTS)
+        # Create new column or set to modify in-place.
+        if new_column_name != None:
+            new_col = DataColumn(new_type, new_column_name)
+            self.add_column(new_col)
+            dest_column = new_column_name
+        else:
+            dest_column = source_column
+
+        cannot_convert = 0
+
+        for r in self.records:
+            try:
+                r[dest_column] = self.change_data_type(r[source_column], source_type, new_type)
+            except DataError as err:
+                if err.error_code == DATA_ERROR_CODE.DATA_CANNOT_CONVERT:
+                    # this is fine and probably a result of user error or incomplete data
+                    cannot_convert += 1
+                    r[dest_column] = None
+                elif err.error_code == DATA_ERROR_CODE.DATA_TYPE_INCOMPATIBLE:
+                    # this is not fine and shows that our data structures are wack
+                    # it should never actually happen, but could happen if more sophisticated data checking implemented later?
+                    raise ColumnError(COLUMN_ERROR_CODE.COLUMN_TYPE_INCOMPATIBLE)
+        
+        return OperationStatus("change_column_type", OP_STATUS_CODE.OP_SUCCESS, cannot_convert)
+        # lets us know about failed conversions so we can alert user to possible data loss
+
 
     # here we're changing data type in the INTERNAL representation
     def change_data_type(self, input: object, input_type : COLUMN_TYPE, output_type: COLUMN_TYPE):
         if input_type not in self.CONVERT_DICT:
-            return None
+            raise DataError(DATA_ERROR_CODE.DATA_TYPE_INCOMPATIBLE)
         if output_type not in self.CONVERT_DICT[input_type]:
-            return None
-
-        return self.CONVERT_DICT[input_type][output_type](input)
+            raise DataError(DATA_ERROR_CODE.DATA_TYPE_INCOMPATIBLE)
+        try:
+            output = self.CONVERT_DICT[input_type][output_type](input)
+        except:
+            raise DataError(DATA_ERROR_CODE.DATA_CANNOT_CONVERT) # this catches invalid conversions without smashing the program
+        return output
 
     def _text_to_select(self, txt):
         return txt 

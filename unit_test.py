@@ -5,7 +5,7 @@ from os.path import dirname, exists, join, realpath
 import json
 from datetime import date, datetime
 
-def write_out(input,relative_path):
+def write_out(input : DataSet,relative_path):
     saved_path = join(dirname(realpath(__file__)), relative_path)
     with open(saved_path, 'w', encoding='utf-8') as f:
             rs = RecordSerializer(indent=4)
@@ -89,6 +89,74 @@ class TestDataSet(unittest.TestCase):
                 "title": "merge_2",
                 "description": "This is merge_2 from left set.",
                 "tags": ["0", "2"]
+            }
+        ]
+
+        self.type_change_records_text_cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.TEXT, "date"),
+            DataColumn(COLUMN_TYPE.TEXT, "multiselect"),
+            DataColumn(COLUMN_TYPE.TEXT, "select")
+        ]
+
+        self.type_change_records_internal_cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.DATE, "date"),
+            DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            DataColumn(COLUMN_TYPE.SELECT, "select")
+        ]
+
+        self.type_change_records_text = [
+            {
+                "id": "0",
+                "date": "Mar 23, 1994 12:01 PM",
+                "multiselect": "0,1,2,3,4",
+                "select": "0",
+            },
+            {
+                "id": "1",
+                "date": "Mar 24, 1995 12:02 PM",
+                "multiselect": "1,2,3,4,5",
+                "select": "1",
+            },
+            {
+                "id": "2",
+                "date": "Mar 25, 1996 12:03 PM",
+                "multiselect": "2,3,4,5,6",
+                "select": "2",
+            },
+            {
+                "id": "3",
+                "date": "Mar 26, 1997 12:04 PM",
+                "multiselect": "3,4,5,6,7",
+                "select": "3",
+            }
+        ]
+
+        self.type_change_records_internal = [
+            {
+                "id": "0",
+                "date": datetime(1994, 3, 23, 12, 1),
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            },
+            {
+                "id": "1",
+                "date": datetime(1995, 3, 24, 12, 2),
+                "multiselect": ['1','2','3','4','5'],
+                "select": "1",
+            },
+            {
+                "id": "2",
+                "date": datetime(1996, 3, 25, 12, 3),
+                "multiselect": ['2','3','4','5','6'],
+                "select": "2",
+            },
+            {
+                "id": "3",
+                "date": datetime(1997, 3, 26, 12, 4),
+                "multiselect": ['3','4','5','6','7'],
+                "select": "3",
             }
         ]
 
@@ -256,8 +324,70 @@ class TestDataSet(unittest.TestCase):
         self.assertEqual(ds.records[0], ds2.records[0])
         self.assertEqual(ds.records[1], ds2.records[1])
 
+    def test_column_to_list(self):
+        title_list = [ record["title"] for record in self.records ]
+        ds = DataSet(self.cols)
+        ds.add_records(self.records)
+        title_column_list = ds.column_to_list("title")
+        self.assertListEqual(title_list, title_column_list)
 
-        print(ds.records[1])
+    def test_change_column_type(self):
+        ds_text = DataSet(self.type_change_records_text_cols)
+        ds_text.add_records(self.type_change_records_text)
+    
+        ds_internal = DataSet(self.type_change_records_internal_cols)
+        ds_internal.add_records(self.type_change_records_internal)
+
+        self.assertEqual( ds_text.column_to_list("id"), ds_internal.column_to_list("id") )
+        self.assertNotEqual( ds_text.column_to_list("date"), ds_internal.column_to_list("date") )
+        self.assertNotEqual( ds_text.column_to_list("multiselect"), ds_internal.column_to_list("multiselect") )
+        self.assertEqual( ds_text.column_to_list("select"), ds_internal.column_to_list("select") ) # select is actually just text internally; should be changed?
+
+        # text -> native type tests
+
+        # new column tests
+        ds_text.change_column_type("date", COLUMN_TYPE.DATE, "date_internal")
+        ds_text.change_column_type("multiselect", COLUMN_TYPE.MULTI_SELECT, "multiselect_internal")
+        ds_text.change_column_type("select", COLUMN_TYPE.SELECT, "select_internal")
+
+        self.assertEqual( ds_text.column_to_list("id"), ds_internal.column_to_list("id") )
+        self.assertEqual( ds_text.column_to_list("date_internal"), ds_internal.column_to_list("date") )
+        self.assertEqual( ds_text.column_to_list("multiselect_internal"), ds_internal.column_to_list("multiselect") )
+        self.assertEqual( ds_text.column_to_list("select_internal"), ds_internal.column_to_list("select") ) # select is actually just text internally
+
+        # inplace column tests
+
+        ds_text.change_column_type("date", COLUMN_TYPE.DATE)
+        ds_text.change_column_type("multiselect", COLUMN_TYPE.MULTI_SELECT)
+        ds_text.change_column_type("select", COLUMN_TYPE.SELECT)
+        
+        self.assertEqual( ds_text.column_to_list("id"), ds_internal.column_to_list("id") )
+        self.assertEqual( ds_text.column_to_list("date"), ds_internal.column_to_list("date") )
+        self.assertEqual( ds_text.column_to_list("multiselect"), ds_internal.column_to_list("multiselect") )
+        self.assertEqual( ds_text.column_to_list("select"), ds_internal.column_to_list("select") )
+
+        # native type -> text test
+
+        ds_text_2 = DataSet(self.type_change_records_text_cols)
+        ds_text_2.add_records(self.type_change_records_text)
+
+        ds_internal.change_column_type("date", COLUMN_TYPE.TEXT, "date_text")
+        ds_internal.change_column_type("multiselect", COLUMN_TYPE.TEXT, "multiselect_text")
+        ds_internal.change_column_type("select", COLUMN_TYPE.TEXT, "select_text")
+
+        self.assertEqual(ds_text_2.column_to_list("date"), ds_internal.column_to_list("date_text") )
+        self.assertEqual(ds_text_2.column_to_list("multiselect"), ds_internal.column_to_list("multiselect_text") )
+        self.assertEqual(ds_text_2.column_to_list("select"), ds_internal.column_to_list("select_text") )
+
+        # failure cases
+
+        with self.assertRaises(ColumnError) as ce:
+            ds_internal.change_column_type("date", COLUMN_TYPE.MULTI_SELECT, "not_allowed")
+            self.assertEquals(ce.error_code, COLUMN_ERROR_CODE.COLUMN_TYPE_INCOMPATIBLE)
+
+        # malformed data cases
+
+        
 
 if __name__ == '__main__':
     unittest.main()
