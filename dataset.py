@@ -4,12 +4,15 @@ from os import error
 from typing import Type, Union
 from datetime import datetime
 import copy
+from unittest import result
 
 # TODO: 
 # * Write method to copy DataRecord, removing unused fields (also preventing pointers from being created)
 # * Improve tests for merge_column, append_column to make them not rely on manual inspection
 # * Write methods to write / read from CSV & JSON formats (probably sync layer responsibility)
 # * Outstanding tests:
+#   * remap
+#       * checking the output of remap
 #   * DataRecord.__eq__
 #       * type guard
 #       * column mismatch
@@ -20,6 +23,7 @@ import copy
 #       * success
 #   * others...
 
+# Note: method to generate mapping from another data set is on the GUI model layer (it needs user input to map both sources), not dataset layer.
 
 class MERGE_TYPE(Enum):
     APPEND = 0
@@ -70,7 +74,8 @@ class DataMap:
 class OperationStatus:
     operation: str
     status: OP_STATUS_CODE
-    non_critical_errors: int
+    non_critical_errors: int = 0
+    op_returns: dict = {}
 
 @dataclass
 class DataColumn:
@@ -167,13 +172,33 @@ class DataSet:
         map: A dictionary, with the source_column as key and DataColumn (i.e. target name and type) as value. Also 
         '''
         clone = copy.deepcopy(self)
-        for col in clone.columns:
+        type_change_results = {}
+
+        missing_map_source = []
+        for map_entry in map.columns:
+            if map_entry not in clone.column_names:
+                missing_map_source.append(map_entry)
+        # needs to happen before clone is modified
+
+        for col in self.columns:
             if col.name not in map.columns:
                 # it doesn't go anywhere, so delete it
+                # unclear what best behaiour is in situation where there's a desired source column that's not in the dataset
+                # most likely this is a problem with /generating/ the mapping or the mapping being outdated, not the remapping process, 
+                # so for now we're simply returning some information on this in the OperationStatus
                 clone.drop_column(col.name)
+            if map.columns[col.name].name != col.name:
+                clone.rename_column(col.name,map.columns[col.name].name) # this could be dangerous - we're modifying what we're looping over
             if col.type != map.columns[col.name].type:
-                self.change_column_type()
+                type_change_results[col.name] = clone.change_column_type(col.name, map.columns[col.name].type)
 
+        total_errors = sum([x.non_critical_errors for x in type_change_results.values()])
+        result_info = {
+            "remapped_data": clone,
+            "type_change_results": type_change_results,
+            "missing_sources": missing_map_source
+        }
+        return OperationStatus("remap", OP_STATUS_CODE.OP_SUCCESS, non_critical_errors=total_errors,op_returns=result_info)
 
     @property
     def column_names(self) -> list:
@@ -318,7 +343,7 @@ class DataSet:
                     # it should never actually happen, but could happen if more sophisticated data checking implemented later?
                     raise ColumnError(COLUMN_ERROR_CODE.COLUMN_TYPE_INCOMPATIBLE)
         
-        return OperationStatus("change_column_type", OP_STATUS_CODE.OP_SUCCESS, cannot_convert)
+        return OperationStatus("change_column_type", OP_STATUS_CODE.OP_SUCCESS, non_critical_errors=cannot_convert, op_returns={"new_column_name": dest_column})
         # lets us know about failed conversions so we can alert user to possible data loss
 
     # here we're changing data type in the INTERNAL representation
