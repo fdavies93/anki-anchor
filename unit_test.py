@@ -370,9 +370,9 @@ class TestDataSet(unittest.TestCase):
         # text -> native type tests
 
         # new column tests
-        ds_text.change_column_type("date", COLUMN_TYPE.DATE, "date_internal")
-        ds_text.change_column_type("multiselect", COLUMN_TYPE.MULTI_SELECT, "multiselect_internal")
-        ds_text.change_column_type("select", COLUMN_TYPE.SELECT, "select_internal")
+        ds_text.change_column_type("date", COLUMN_TYPE.DATE, "date_internal", inplace=False)
+        ds_text.change_column_type("multiselect", COLUMN_TYPE.MULTI_SELECT, "multiselect_internal", inplace=False)
+        ds_text.change_column_type("select", COLUMN_TYPE.SELECT, "select_internal", inplace=False)
 
         self.assertEqual( ds_text.column_to_list("id"), ds_internal.column_to_list("id") )
         self.assertEqual( ds_text.column_to_list("date_internal"), ds_internal.column_to_list("date") )
@@ -395,9 +395,9 @@ class TestDataSet(unittest.TestCase):
         ds_text_2 = DataSet(self.type_change_records_text_cols)
         ds_text_2.add_records(self.type_change_records_text)
 
-        ds_internal.change_column_type("date", COLUMN_TYPE.TEXT, "date_text")
-        ds_internal.change_column_type("multiselect", COLUMN_TYPE.TEXT, "multiselect_text")
-        ds_internal.change_column_type("select", COLUMN_TYPE.TEXT, "select_text")
+        ds_internal.change_column_type("date", COLUMN_TYPE.TEXT, "date_text", inplace=False)
+        ds_internal.change_column_type("multiselect", COLUMN_TYPE.TEXT, "multiselect_text", inplace=False)
+        ds_internal.change_column_type("select", COLUMN_TYPE.TEXT, "select_text", inplace=False)
 
         self.assertEqual(ds_text_2.column_to_list("date"), ds_internal.column_to_list("date_text") )
         self.assertEqual(ds_text_2.column_to_list("multiselect"), ds_internal.column_to_list("multiselect_text") )
@@ -447,7 +447,7 @@ class TestDataSet(unittest.TestCase):
 
         ds_internal_2.add_records(internal_list)
 
-        report = ds_text_3.change_column_type("date", COLUMN_TYPE.DATE, "date_modified")
+        report = ds_text_3.change_column_type("date", COLUMN_TYPE.DATE, "date_modified", inplace=False)
 
         self.assertEqual(report.non_critical_errors,1)
         self.assertEqual(ds_internal_2.column_to_list("date"),ds_text_3.column_to_list("date_modified"))

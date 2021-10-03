@@ -64,7 +64,7 @@ class DataSetFormat:
 @dataclass
 class DataMap:
     columns: dict
-    format: dict # currently 
+    format: DataSetFormat
 
 @dataclass
 class OperationStatus:
@@ -161,16 +161,19 @@ class DataSet:
             r = self._add_record_from_dict(d)
         return r
 
-    def remap(self, map : dict):
+    def remap(self, map : DataMap):
         ''' Changes column names and types according to the map object, until they all match the desired mapping.
         Returns a copy of self with columns remapped.
         map: A dictionary, with the source_column as key and DataColumn (i.e. target name and type) as value. Also 
         '''
         clone = copy.deepcopy(self)
-        for col in clone._columns:
-            if col.name not in map:
+        for col in clone.columns:
+            if col.name not in map.columns:
                 # it doesn't go anywhere, so delete it
-                pass
+                clone.drop_column(col.name)
+            if col.type != map.columns[col.name].type:
+                self.change_column_type()
+
 
     @property
     def column_names(self) -> list:
@@ -264,7 +267,7 @@ class DataSet:
         #     record._column_names = self._column_names
         #     del record._fields[index]
 
-    def change_column_type(self, source_column : str, new_type : COLUMN_TYPE, new_column_name : str = None):
+    def change_column_type(self, source_column : str, new_type : COLUMN_TYPE, new_column_name : str = None, inplace = True):
         ''' Changes column type, modifying in-place by default or creating a new column if given a name. '''
         if source_column not in self._column_names:
             raise ColumnError(COLUMN_ERROR_CODE.COLUMN_NOT_FOUND)
@@ -278,12 +281,27 @@ class DataSet:
         if new_column_name in self._column_names:
             raise ColumnError(COLUMN_ERROR_CODE.COLUMN_ALREADY_EXISTS)
         # Create new column or set to modify in-place.
-        if new_column_name != None:
-            new_col = DataColumn(new_type, new_column_name)
+        if not inplace:
+            if new_column_name != None: new_nm = new_column_name
+            else: new_nm = source_column
+            while new_nm in self._column_names:
+                new_nm += "_m"
+            new_col = DataColumn(new_type, new_nm)
             self.add_column(new_col)
-            dest_column = new_column_name
+            dest_column = new_nm
         else:
-            dest_column = source_column
+            if new_column_name != None:
+                self.rename_column(source_column, new_column_name)
+                dest_column = new_column_name
+            else: dest_column = source_column
+                
+
+        # if new_column_name != None:
+        #     new_col = DataColumn(new_type, new_column_name)
+        #     self.add_column(new_col)
+        #     dest_column = new_column_name
+        # else:
+        #     dest_column = source_column
 
         cannot_convert = 0
 
