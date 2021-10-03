@@ -74,8 +74,8 @@ class DataMap:
 class OperationStatus:
     operation: str
     status: OP_STATUS_CODE
+    op_returns: dict
     non_critical_errors: int = 0
-    op_returns: dict = {}
 
 @dataclass
 class DataColumn:
