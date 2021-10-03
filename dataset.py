@@ -2,6 +2,7 @@ from enum import Enum
 from dataclasses import dataclass, field
 from typing import Union
 from datetime import datetime
+import copy
 
 class MERGE_TYPE(Enum):
     APPEND = 0
@@ -62,6 +63,20 @@ class DataRecord:
         i = self._column_names[key]
         self._fields[i] = value
 
+    def __eq__(self, o: object) -> bool:
+        if not isinstance(o, DataRecord):
+            raise TypeError(o)
+
+        all_columns = set(self._column_names.keys())
+        all_columns.update(o._column_names.keys())
+
+        for k in all_columns:
+            if k not in self._column_names or k not in o._column_names: # check same number of columns
+                return False
+            if self[k] != o[k]: # :D - leveraging __getitem__ method to check equality
+                return False
+        return True
+
     def asdict(self):
         record_dict = {}
         for col_name in self._column_names:
@@ -75,7 +90,8 @@ class DataSet:
         # columns is always a list of DataColumns
         # records can be a list of dicts
         # default time format is identical to Notion's
-        self.columns = []
+        self._columns = []
+        self._deleted_column_ids = []
         self.records = []
         self._column_names = {}
         self.format = format
@@ -83,7 +99,7 @@ class DataSet:
             col = columns[i]
             new_col = DataColumn(col.type,col.name)
             self._column_names[col.name] = i
-            self.columns.append(new_col)
+            self._columns.append(new_col)
 
         for r in records:
             self.add_record(r)
@@ -116,6 +132,27 @@ class DataSet:
             r = self._add_record_from_dict(d)
         return r
 
+    def remap(self, map : dict):
+        ''' Changes column names and types according to the map object, until they all match the desired mapping.
+        Returns a copy of the 
+        map: A dictionary, with the source_column as key and DataColumn as value.
+        '''
+        clone = copy.deepcopy(self)
+        for col in clone._columns:
+            if col.name not in map:
+                # it doesn't go anywhere, so delete it
+                pass
+
+    @property
+    def column_names(self) -> list:
+        '''Returns current list of column names. Note that this is not the map of column names to indexes.'''
+        return [k for k in self._column_names]
+
+    @property
+    def columns(self) -> list:
+        '''Returns list of current column definitions - i.e. not the underlying list _columns.'''
+        return [self._columns[v] for v in self._column_names.values()]
+
     def column_to_list(self, column_name) -> list:
         if column_name not in self._column_names:
             raise ColumnError(COLUMN_ERROR_CODE.COLUMN_NOT_FOUND)
@@ -143,7 +180,7 @@ class DataSet:
         return self._column_names[key]
 
     def get_column(self, key) -> DataColumn:
-        return self.columns[self.get_column_index(key)]
+        return self._columns[self.get_column_index(key)]
 
     def rename_column(self, old_name, new_name):
         if old_name not in self._column_names:
@@ -151,21 +188,51 @@ class DataSet:
         if new_name in self._column_names:
             raise ColumnError(COLUMN_ERROR_CODE.COLUMN_ALREADY_EXISTS)
         self._column_names[new_name] = self._column_names[old_name]
-        self.columns[self._column_names[new_name]].name = new_name # rename the actual column object
+        self._columns[self._column_names[new_name]].name = new_name # rename the actual column object
         del self._column_names[old_name]
         for record in self.records:
             record._column_names = self._column_names
+
+    def get_next_column_id(self) -> int:
+        ''' Gets next available column id. '''
+        if len(self._deleted_column_ids) > 0:
+            return self._deleted_column_ids[-1]
+        else: 
+            return len(self.columns)
 
     def add_column(self, column: DataColumn, default_val = None):
         if column.name in self._column_names:
             raise ColumnError(COLUMN_ERROR_CODE.COLUMN_ALREADY_EXISTS)
         
-        self.columns.append(column)
-        self._column_names[column.name] = len(self.columns) - 1
+        new_column_id = self.get_next_column_id()
+
+        # recycling old column ids to avoid throwing off previous fields in records
+        if len(self._columns) == new_column_id:
+            self._columns.append(column)
+        else:
+            self._columns[new_column_id] = column
+            self._deleted_column_ids.pop()
+
+        self._column_names[column.name] = new_column_id
 
         for record in self.records:
             record._column_names = self._column_names
-            record._fields[len(self.columns) - 1] = default_val
+            record._fields[new_column_id] = default_val
+
+    def drop_column(self, column_name: str):
+        if column_name not in self._column_names:
+            raise ColumnError(COLUMN_ERROR_CODE.COLUMN_NOT_FOUND)
+        
+        index = self._column_names[column_name]
+        # del self.columns[index]
+        # unfortunately self.columns is actually a list, although not used this way (thankfully) in records
+        # current solution, rather than deleting column and requiring update for each record - just delist it from column names
+        del self._column_names[column_name]
+        self._deleted_column_ids.append(index)
+
+        for record in self.records:
+            record._column_names = self._column_names
+            del record._fields[index]
 
     def change_column_type(self, source_column : str, new_type : COLUMN_TYPE, new_column_name : str = None):
         ''' Changes column type, modifying in-place by default or creating a new column if given a name. '''
@@ -206,7 +273,6 @@ class DataSet:
         return OperationStatus("change_column_type", OP_STATUS_CODE.OP_SUCCESS, cannot_convert)
         # lets us know about failed conversions so we can alert user to possible data loss
 
-
     # here we're changing data type in the INTERNAL representation
     def change_data_type(self, input: object, input_type : COLUMN_TYPE, output_type: COLUMN_TYPE):
         if input_type not in self.CONVERT_DICT:
@@ -239,8 +305,6 @@ class DataSet:
         return select
         # difference between select and text is largely determined by external (i.e. data source) representations, not the data itself
 
-    
-
 def select_first_or_only(input):
     if isinstance(input, list):
         return input[0]
@@ -270,14 +334,14 @@ def merge_records(left: DataRecord, right: DataRecord, overwrite=False):
         left_val = left[name]
         if (left_val != None and right_val == None) or overwrite:
             new_fields[i] = left_val
-        else: new_fields[i] = right_val    
+        else: new_fields[i] = right_val # note this includes scenario where both are None
     return DataRecord(left._column_names, new_fields)
 
 
 def append(left: DataSet, right: DataSet, left_key: str, right_key: str, ignore_duplicates: bool = True):
     index_left = build_key_index(left, left_key)
     index_right = build_key_index(right, right_key)
-    new_set = DataSet(right.columns)
+    new_set = DataSet(right.columns) # make a new, empty dataset with only the valid columns from 1
     for k in index_right:
         for r in select_all(index_right[k]):
             new_set.add_record(r)

@@ -5,7 +5,7 @@ from os.path import dirname, exists, join, realpath
 import json
 from datetime import date, datetime
 
-def write_out(input : DataSet,relative_path):
+def write_out(input: DataSet,relative_path):
     saved_path = join(dirname(realpath(__file__)), relative_path)
     with open(saved_path, 'w', encoding='utf-8') as f:
             rs = RecordSerializer(indent=4)
@@ -183,9 +183,9 @@ class TestDataSet(unittest.TestCase):
     def test_rename_column(self):
         ds = DataSet(self.cols)
         ds.add_records(self.records)
-        self.assertEqual(ds.columns[0],DataColumn(COLUMN_TYPE.TEXT,"title"))
+        self.assertEqual(ds._columns[0],DataColumn(COLUMN_TYPE.TEXT,"title"))
         ds.rename_column("title","name")
-        self.assertEqual(ds.columns[0],DataColumn(COLUMN_TYPE.TEXT,"name"))
+        self.assertEqual(ds._columns[0],DataColumn(COLUMN_TYPE.TEXT,"name"))
         cols2 = [
             DataColumn(COLUMN_TYPE.TEXT, "name"),
             DataColumn(COLUMN_TYPE.TEXT, "description"),
@@ -267,6 +267,23 @@ class TestDataSet(unittest.TestCase):
 
     def test_add_column(self):
 
+        # self.cols = [
+        #     DataColumn(COLUMN_TYPE.TEXT, "title"),
+        #     DataColumn(COLUMN_TYPE.TEXT, "description"),
+        #     DataColumn(COLUMN_TYPE.MULTI_SELECT, "tags")
+        # ]
+
+        # {
+        #         "title": "record_1",
+        #         "description": "this is the first record",
+        #         "tags": ["0", "3", "5"]
+        #     },
+        #     {
+        #         "title": "record_2",
+        #         "description": "this is the second record",
+        #         "tags": ["1", "2", "3"]
+        #     }
+
         extra_cols = [
             DataColumn(COLUMN_TYPE.TEXT, "title"),
             DataColumn(COLUMN_TYPE.TEXT, "description"),
@@ -304,13 +321,20 @@ class TestDataSet(unittest.TestCase):
 
         ds = DataSet(self.cols)
         ds.add_records(self.records[0:2])
+        # write_out(ds.records,"./test_output/add_column_1.json")
 
         test_col = DataColumn(COLUMN_TYPE.TEXT,"test_column")
         ds.add_column(test_col)
 
+        write_out(ds.records,"./test_output/add_column_ds1.json")
+
         ds2 = DataSet(extra_cols, records=none_test)
+
+        write_out(ds2.records,"./test_output/add_column_ds2.json")
+
         self.assertEqual(ds.records[0], ds2.records[0])
         self.assertEqual(ds.records[1], ds2.records[1])
+
 
         ###
 
