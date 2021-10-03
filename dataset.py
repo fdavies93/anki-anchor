@@ -198,7 +198,7 @@ class DataSet:
         if len(self._deleted_column_ids) > 0:
             return self._deleted_column_ids[-1]
         else: 
-            return len(self.columns)
+            return len(self._columns)
 
     def add_column(self, column: DataColumn, default_val = None):
         if column.name in self._column_names:
