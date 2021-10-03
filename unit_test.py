@@ -236,7 +236,7 @@ class TestDataSet(unittest.TestCase):
         write_out(merge_hard.records,"./test_output/merge_hard.json")
 
     def test_convert_types_correct(self):
-        test_format = {"multiselect_delimiter": ",", "time_format": "%b %d, %Y %I:%M %p"}
+        test_format = DataSetFormat(multiselect_delimiter=",", time_format="%b %d, %Y %I:%M %p")
         ds = DataSet(self.cols, format=test_format)
 
         # Select
@@ -257,7 +257,7 @@ class TestDataSet(unittest.TestCase):
         # Dates
 
         test_date_str = "Mar 23, 1994 12:01 PM"
-        test_date = datetime.strptime(test_date_str, test_format["time_format"])
+        test_date = datetime.strptime(test_date_str, test_format.time_format)
 
         cur_out = ds.change_data_type("Mar 23, 1994 12:01 PM", COLUMN_TYPE.TEXT, COLUMN_TYPE.DATE)
         self.assertEqual(test_date, cur_out)
@@ -451,6 +451,56 @@ class TestDataSet(unittest.TestCase):
 
         self.assertEqual(report.non_critical_errors,1)
         self.assertEqual(ds_internal_2.column_to_list("date"),ds_text_3.column_to_list("date_modified"))
+
+    def test_drop_column(self):
+
+        cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.DATE, "date"),
+            DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            DataColumn(COLUMN_TYPE.SELECT, "select")
+        ]
+
+        sample = [
+            {
+                "id": "0",
+                "date": datetime(1994, 3, 23, 12, 1),
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            },
+            {
+                "id": "0",
+                "date": None,
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            }
+        ]
+
+        sample_dropped = [
+            {
+                "id": "0",
+                "date": datetime(1994, 3, 23, 12, 1),
+                "multiselect": ['0','1','2','3','4']
+            },
+            {
+                "id": "0",
+                "date": None,
+                "multiselect": ['0','1','2','3','4']
+            }
+        ]
+
+        ds = DataSet(cols)
+        dropped_set = DataSet(cols[0:3])
+        ds.add_records(sample)
+        dropped_set.add_records(sample_dropped)
+
+        self.assertRaises(ColumnError, ds.drop_column, "not_a_column")
+
+        ds.drop_column("select")
+
+        for i in range(len(ds.records)):
+            self.assertEqual(ds.records[i],dropped_set.records[i])
+
 
 if __name__ == '__main__':
     unittest.main()

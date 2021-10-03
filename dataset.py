@@ -1,8 +1,25 @@
 from enum import Enum
 from dataclasses import dataclass, field
-from typing import Union
+from os import error
+from typing import Type, Union
 from datetime import datetime
 import copy
+
+# TODO: 
+# * Write method to copy DataRecord, removing unused fields (also preventing pointers from being created)
+# * Improve tests for merge_column, append_column to make them not rely on manual inspection
+# * Write methods to write / read from CSV & JSON formats (probably sync layer responsibility)
+# * Outstanding tests:
+#   * DataRecord.__eq__
+#       * type guard
+#       * column mismatch
+#       * data mismatch
+#       * success
+#   * DataSet.drop_column
+#       * column name guard
+#       * success
+#   * others...
+
 
 class MERGE_TYPE(Enum):
     APPEND = 0
@@ -38,6 +55,16 @@ class ColumnError(ValueError):
     def __init__(self, error_code: COLUMN_ERROR_CODE, message="Column error."):
         self.error_code = error_code
         super().__init__(message)
+
+@dataclass
+class DataSetFormat:
+    multiselect_delimiter: str = ","
+    time_format: str = "%b %d, %Y %I:%M %p"
+
+@dataclass
+class DataMap:
+    columns: dict
+    format: dict # currently 
 
 @dataclass
 class OperationStatus:
@@ -86,10 +113,12 @@ class DataRecord:
 
 class DataSet:
 
-    def __init__(self,columns:list,records:list=[],format={"multiselect_delimiter": ",", "time_format": "%b %d, %Y %I:%M %p"}):
+    def __init__(self,columns:list,records:list=[],format:DataSetFormat = DataSetFormat()):
         # columns is always a list of DataColumns
         # records can be a list of dicts
         # default time format is identical to Notion's
+        if not isinstance(format, DataSetFormat):
+            raise TypeError(format)
         self._columns = []
         self._deleted_column_ids = []
         self.records = []
@@ -134,8 +163,8 @@ class DataSet:
 
     def remap(self, map : dict):
         ''' Changes column names and types according to the map object, until they all match the desired mapping.
-        Returns a copy of the 
-        map: A dictionary, with the source_column as key and DataColumn as value.
+        Returns a copy of self with columns remapped.
+        map: A dictionary, with the source_column as key and DataColumn (i.e. target name and type) as value. Also 
         '''
         clone = copy.deepcopy(self)
         for col in clone._columns:
@@ -230,9 +259,10 @@ class DataSet:
         del self._column_names[column_name]
         self._deleted_column_ids.append(index)
 
-        for record in self.records:
-            record._column_names = self._column_names
-            del record._fields[index]
+        # simply delisting column is a lot more efficient
+        # for record in self.records:
+        #     record._column_names = self._column_names
+        #     del record._fields[index]
 
     def change_column_type(self, source_column : str, new_type : COLUMN_TYPE, new_column_name : str = None):
         ''' Changes column type, modifying in-place by default or creating a new column if given a name. '''
@@ -290,16 +320,16 @@ class DataSet:
         # difference between select and text is largely determined by external (i.e. data source) representations, not the data itself
 
     def _text_to_multiselect(self, txt:str):
-        return txt.split(self.format["multiselect_delimiter"])
+        return txt.split(self.format.multiselect_delimiter)
 
     def _text_to_date(self, txt):
-        return datetime.strptime(txt,self.format["time_format"])
+        return datetime.strptime(txt,self.format.time_format)
 
     def _date_to_text(self, date):
-        return datetime.strftime(date, self.format["time_format"])
+        return datetime.strftime(date, self.format.time_format)
 
     def _multiselect_to_text(self, multi_select: list):
-        return self.format["multiselect_delimiter"].join(multi_select)
+        return self.format.multiselect_delimiter.join(multi_select)
 
     def _select_to_text(self, select):
         return select
