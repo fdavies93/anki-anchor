@@ -235,6 +235,109 @@ class TestDataSet(unittest.TestCase):
         write_out(merge_soft.records,"./test_output/merge_soft.json")
         write_out(merge_hard.records,"./test_output/merge_hard.json")
 
+    def test_merge_records_full_outer(self):
+        cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            DataColumn(COLUMN_TYPE.SELECT, "select")
+        ]
+        left_records = [
+            {
+                "id": "merge_1",
+                "multiselect": None,
+                "select": None,
+            },
+            {
+                "id": "merge_2",
+                "multiselect": ['0','1','2','3','4'],
+                "select": None,
+            },
+            {
+                "id": "merge_2",
+                "multiselect": None,
+                "select": None,
+            },
+            {
+                "id": 'merge_left_1',
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            }
+        ]
+        right_records = [
+            {
+                "id": "merge_1",
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            },
+            {
+                "id": "merge_2",
+                "multiselect": None,
+                "select": "0",
+            },
+            {
+                "id": "merge_2",
+                "multiselect": None,
+                "select": "1",
+            },
+            {
+                "id": 'merge_right_1',
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            }
+        ]
+
+        merge_reference = [
+            {
+                "id": "merge_1",
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            },
+            {
+                "id": "merge_2",
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            },
+            {
+                "id": "merge_2",
+                "multiselect": ['0','1','2','3','4'],
+                "select": "1",
+            },
+            {
+                "id": "merge_2",
+                "multiselect": None,
+                "select": "0",
+            },
+            {
+                "id": "merge_2",
+                "multiselect": None,
+                "select": "1",
+            },
+            {
+                "id": 'merge_left_1',
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            },
+            {
+                "id": 'merge_right_1',
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            }
+        ]
+
+        left = DataSet(cols)
+        right = DataSet(cols)
+        left.add_records(left_records)
+        right.add_records(right_records)
+        merged_manual = DataSet(cols)
+        merged_manual.add_records(merge_reference)
+        merged = merge(left, right, "id", "id")
+
+        write_out(left.records,"./test_output/merge_left.json")
+        write_out(right.records,"./test_output/merge_right.json")
+        write_out(merged_manual.records,"./test_output/merge_sample.json")
+        write_out(merged.records,"./test_output/merged_test.json")
+
+
     def test_convert_types_correct(self):
         test_format = DataSetFormat(multiselect_delimiter=",", time_format="%b %d, %Y %I:%M %p")
         ds = DataSet(self.cols, format=test_format)

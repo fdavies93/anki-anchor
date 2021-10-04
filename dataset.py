@@ -425,7 +425,7 @@ def merge(left : DataSet, right : DataSet, left_key : str, right_key : str, over
 
     if left_join:
         for k in left_keys.difference(right_keys):
-            for record in select_all(index_right[k]):
+            for record in select_all(index_left[k]):
                 new_set.add_record(record)
 
     if right_join:
