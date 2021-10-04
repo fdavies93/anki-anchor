@@ -4,9 +4,11 @@ from os import error
 from typing import Type, Union
 from datetime import datetime
 import copy
-from unittest import result
 
 # TODO: 
+# * IMPORTANT:
+# * remap test (completes data layer methods for v0.1)
+# * improve merge algorithm & test - to make sure right dataset records are also included (through lower priority)
 # * Write method to copy DataRecord, removing unused fields (also preventing pointers from being created)
 # * Improve tests for merge_column, append_column to make them not rely on manual inspection
 # * Write methods to write / read from CSV & JSON formats (probably sync layer responsibility)
@@ -21,6 +23,9 @@ from unittest import result
 #   * DataSet.drop_column
 #       * column name guard
 #       * success
+#   * DateSet.merge
+#       * guard to ensure datasets have same spec
+#       * 
 #   * others...
 
 # Note: method to generate mapping from another data set is on the GUI model layer (it needs user input to map both sources), not dataset layer.
@@ -44,7 +49,8 @@ class COLUMN_ERROR_CODE(Enum):
 
 class DATA_ERROR_CODE(Enum):
     DATA_CANNOT_CONVERT = 0,
-    DATA_TYPE_INCOMPATIBLE = 1
+    DATA_TYPE_INCOMPATIBLE = 1,
+    DATA_COLUMNS_INCOMPATIBLE = 2
 
 class OP_STATUS_CODE(Enum):
     OP_SUCCESS = 0,
@@ -236,7 +242,7 @@ class DataSet:
             raise ColumnError(COLUMN_ERROR_CODE.COLUMN_NOT_FOUND)
         return self._column_names[key]
 
-    def get_column(self, key) -> DataColumn:
+    def get_column(self, key : str) -> DataColumn:
         return self._columns[self.get_column_index(key)]
 
     def rename_column(self, old_name, new_name):
@@ -383,21 +389,50 @@ def select_first_or_only(input):
         return input[0]
     else: return input
 
-def select_all(input):
+def select_all(input) -> list:
     if isinstance(input,list):
         return input
     else: return [input]
 
-def merge(left, right, left_key, right_key, overwrite = False):
+def merge(left : DataSet, right : DataSet, left_key : str, right_key : str, overwrite = False, force_uniques = False, left_join = True, right_join = True, inner_join = True) -> DataSet:
+    ''' Defaults to the equivalent of a full outer join (left, right, and inner records are all retained.) '''
+
+    if not have_same_columns(left, right): raise DataError(DATA_ERROR_CODE.DATA_COLUMNS_INCOMPATIBLE)
+
     index_left = build_key_index(left, left_key)
     index_right = build_key_index(right, right_key)
+    left_keys = set(k for k in index_left.keys())
+    right_keys = set(k for k in index_right.keys())
     new_set = DataSet(left.columns)
-    for k in index_left: # left _always_ takes priority
-        if k in index_right and right.get_column(right_key) == left.get_column(left_key):
-            lr = select_first_or_only(index_left[k])
-            rr = select_first_or_only(index_right[k])
-            new_record = merge_records(lr, rr, overwrite)
-            new_set.add_record(new_record)
+
+    if inner_join:
+        for k in left_keys.intersection(right_keys):
+            # 
+            # force_uniques forces only a single unique outcome to an inner join 
+            # i.e. it assumes keys are unique, although this might be untrue
+            #         
+            if force_uniques:
+                lrs = [select_first_or_only(index_left[k])]
+                rrs = [select_first_or_only(index_right[k])]
+            else:
+                lrs = select_all(index_left[k])
+                rrs = select_all(index_right[k])
+
+            for lr in lrs:
+                for rr in rrs:        
+                    new_record = merge_records(lr, rr, overwrite)
+                    new_set.add_record(new_record)
+
+    if left_join:
+        for k in left_keys.difference(right_keys):
+            for record in select_all(index_right[k]):
+                new_set.add_record(record)
+
+    if right_join:
+        for k in right_keys.difference(left_keys):
+            for record in select_all(index_right[k]):
+                new_set.add_record(record)
+
     return new_set
 
 def merge_records(left: DataRecord, right: DataRecord, overwrite=False):
@@ -410,6 +445,14 @@ def merge_records(left: DataRecord, right: DataRecord, overwrite=False):
         else: new_fields[i] = right_val # note this includes scenario where both are None
     return DataRecord(left._column_names, new_fields)
 
+def have_same_columns(left: DataSet, right: DataSet) -> bool:
+    ''' Returns true if columns are identical between two datasets. '''
+    left_column_names = set(left.column_names)
+    right_column_names = set(right.column_names)
+    if len(left_column_names.difference(right_column_names)) > 0: return False # column names aren't the same
+    for left_key in left_column_names:
+        if left.get_column(left_key) != right.get_column(left_key): return False # column types are different
+    return True
 
 def append(left: DataSet, right: DataSet, left_key: str, right_key: str, ignore_duplicates: bool = True):
     index_left = build_key_index(left, left_key)
