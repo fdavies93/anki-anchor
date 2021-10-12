@@ -604,6 +604,176 @@ class TestDataSet(unittest.TestCase):
         for i in range(len(ds.records)):
             self.assertEqual(ds.records[i],dropped_set.records[i])
 
+    def test_equivalent_to_correct(self):
+        ''' Check that equivalent_to function works when it should work. '''
+        cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.DATE, "date"),
+            DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            DataColumn(COLUMN_TYPE.SELECT, "select") 
+        ]
+        records_1 = [
+            {
+                "id": "0",
+                "date": datetime(1994, 3, 23, 12, 1),
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            },
+            {
+                "id": "1",
+                "date": datetime(1995, 3, 24, 12, 2),
+                "multiselect": ['1','2','3','4','5'],
+                "select": "1",
+            },
+            {
+                "id": "2",
+                "date": datetime(1996, 3, 25, 12, 3),
+                "multiselect": ['2','3','4','5','6'],
+                "select": "2",
+            },
+            {
+                "id": "3",
+                "date": datetime(1997, 3, 26, 12, 4),
+                "multiselect": ['3','4','5','6','7'],
+                "select": "3",
+            }]
+        records_disordered = [
+            {
+                "id": "1",
+                "date": datetime(1995, 3, 24, 12, 2),
+                "multiselect": ['1','2','3','4','5'],
+                "select": "1",
+            },
+            {
+                "id": "0",
+                "date": datetime(1994, 3, 23, 12, 1),
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            },
+            {
+                "id": "3",
+                "date": datetime(1997, 3, 26, 12, 4),
+                "multiselect": ['3','4','5','6','7'],
+                "select": "3",
+            },
+            {
+                "id": "2",
+                "date": datetime(1996, 3, 25, 12, 3),
+                "multiselect": ['2','3','4','5','6'],
+                "select": "2",
+            }]
+        
+        ds = DataSet(cols,records_1)
+        ds_disordered = DataSet(cols, records_disordered)
+        self.assertTrue(ds.equivalent_to(ds_disordered, "id") ) # with designated key
+        self.assertTrue(ds.equivalent_to(ds_disordered, "date") ) # with a different designated key
+        self.assertTrue(ds.equivalent_to(ds_disordered, "select") ) # with a different designated key
+        self.assertTrue(ds.equivalent_to(ds_disordered)) # without designated key
+
+    def test_equivalent_to_different_columns(self):
+        cols_1 = [DataColumn(COLUMN_TYPE.TEXT, "id"),
+                DataColumn(COLUMN_TYPE.DATE, "date"),
+                DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+                DataColumn(COLUMN_TYPE.SELECT, "select") ]
+        cols_2 = [DataColumn(COLUMN_TYPE.TEXT, "id"),
+                DataColumn(COLUMN_TYPE.DATE, "date"),
+                DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect") ]
+        ds1 = DataSet(cols_1)
+        ds2 = DataSet(cols_2)
+        self.assertFalse( ds1.equivalent_to(ds2) )
+
+    def test_equivalent_to_empty_set(self):
+        cols_1 = [DataColumn(COLUMN_TYPE.TEXT, "id"),
+                DataColumn(COLUMN_TYPE.DATE, "date"),
+                DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+                DataColumn(COLUMN_TYPE.SELECT, "select") ]
+        cols_2 = [DataColumn(COLUMN_TYPE.TEXT, "id"),
+                DataColumn(COLUMN_TYPE.DATE, "date"),
+                DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+                DataColumn(COLUMN_TYPE.SELECT, "select") ]
+        ds1 = DataSet(cols_1)
+        ds2 = DataSet(cols_2)
+        self.assertTrue( ds1.equivalent_to(ds2) )
+
+    def test_equivalent_to_improper_key(self):
+        cols_1 = [DataColumn(COLUMN_TYPE.TEXT, "id"),
+                DataColumn(COLUMN_TYPE.DATE, "date"),
+                DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+                DataColumn(COLUMN_TYPE.SELECT, "select") ]
+        cols_2 = [DataColumn(COLUMN_TYPE.TEXT, "id"),
+                DataColumn(COLUMN_TYPE.DATE, "date"),
+                DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+                DataColumn(COLUMN_TYPE.SELECT, "select") ]
+        ds1 = DataSet(cols_1)
+        ds2 = DataSet(cols_2)
+        self.assertRaises( ColumnError, ds1.equivalent_to, ds2, "not_a_column" )
+
+    def test_equivalent_to_normal_failure(self):
+        cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.DATE, "date"),
+            DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            DataColumn(COLUMN_TYPE.SELECT, "select") 
+        ]
+        records_1 = [
+            {
+                "id": "0",
+                "date": datetime(1994, 3, 23, 12, 1),
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            },
+            {
+                "id": "1",
+                "date": datetime(1995, 3, 24, 12, 2),
+                "multiselect": ['1','2','3','4','5'],
+                "select": "1",
+            },
+            {
+                "id": "2",
+                "date": datetime(1996, 3, 25, 12, 3),
+                "multiselect": ['2','3','4','5','6'],
+                "select": "2",
+            },
+            { # here has several differences from other dataset
+                "id": "3",
+                "date": datetime(1997, 3, 26, 12, 5),
+                "multiselect": ['3','4','5','6','5'],
+                "select": "33",
+            }]
+        records_disordered = [
+            {
+                "id": "1",
+                "date": datetime(1995, 3, 24, 12, 2),
+                "multiselect": ['1','2','3','4','5'],
+                "select": "1",
+            },
+            {
+                "id": "0",
+                "date": datetime(1994, 3, 23, 12, 1),
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            },
+            {
+                "id": "3",
+                "date": datetime(1997, 3, 26, 12, 4),
+                "multiselect": ['3','4','5','6','7'],
+                "select": "3",
+            },
+            {
+                "id": "2",
+                "date": datetime(1996, 3, 25, 12, 3),
+                "multiselect": ['2','3','4','5','6'],
+                "select": "2",
+            }]
+
+        ds = DataSet(cols,records_1)
+        ds_disordered = DataSet(cols, records_disordered)
+
+        self.assertFalse(ds.equivalent_to(ds_disordered, "id") ) # with designated key
+        self.assertFalse(ds.equivalent_to(ds_disordered, "date") ) # with a different designated key
+        self.assertFalse(ds.equivalent_to(ds_disordered, "select") ) # with a different designated key
+        self.assertFalse(ds.equivalent_to(ds_disordered)) # without designated key
+
 
 if __name__ == '__main__':
     unittest.main()
