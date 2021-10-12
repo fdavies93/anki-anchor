@@ -434,7 +434,6 @@ class DataSet:
                 if (len(self_to_check) == 0): break
                 self_i_i += 1
             if len(self_to_check) > 0 or len(other_to_check) > 0: 
-                # problem with duplicate keys (fairly common scenario!)
                 return False 
             # i.e. there's not exactly 1 match for every record
         return True

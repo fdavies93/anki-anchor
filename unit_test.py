@@ -628,6 +628,12 @@ class TestDataSet(unittest.TestCase):
                 "date": datetime(1997, 3, 26, 12, 4),
                 "multiselect": ['3','4','5','6','7'],
                 "select": "3",
+            },
+            {
+                "id": "2",
+                "date": datetime(1997, 3, 26, 12, 4),
+                "multiselect": ['3','4','5','6','7'],
+                "select": "3",
             }]
         records_disordered = [
             {
@@ -650,10 +656,17 @@ class TestDataSet(unittest.TestCase):
             },
             {
                 "id": "2",
+                "date": datetime(1997, 3, 26, 12, 4),
+                "multiselect": ['3','4','5','6','7'],
+                "select": "3",
+            },
+            {
+                "id": "2",
                 "date": datetime(1996, 3, 25, 12, 3),
                 "multiselect": ['2','3','4','5','6'],
                 "select": "2",
-            }]
+            },
+            ]
         
         ds = DataSet(cols,records_1)
         ds_disordered = DataSet(cols, records_disordered)
