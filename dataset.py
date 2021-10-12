@@ -369,7 +369,9 @@ class DataSet:
     def equivalent_to(self, other : 'DataSet', key_column : str = None):
         ''' Checks if dataset is equivalent to another dataset: i.e. its columns are the same and its records can be matched to exactly one other record in the other dataset. '''
         # TODO: Add function to determine the optimal index for a key, to optimise when key isn't provided
-        if not have_same_columns(self, other): return False
+        if not have_same_columns(self, other): 
+            # print ("Columns differ.")
+            return False
         if key_column != None and (key_column not in self.column_names or key_column not in other.column_names):
             raise ColumnError(COLUMN_ERROR_CODE.COLUMN_NOT_FOUND)
         if len(self.records) == 0 and len(other.records) == 0: return True # they're both an empty set with the same column spec
@@ -384,6 +386,7 @@ class DataSet:
             for col in self_indexes:
                 if len(self_indexes[col]) != len(other_indexes[col]):
                     # indexes differ, therefore data is different
+                    # print ("Different indexes.")
                     return False
                 else:
                     # same number of bins but might not be the same data
@@ -403,7 +406,9 @@ class DataSet:
         # appears to only be checking value of first record...
         for self_key in self_index:
             # a key doesn't exist in the other index - they're not the same data
-            if self_key not in other_index: return False  
+            if self_key not in other_index: 
+                # print ("Key not in other index.")
+                return False
             # need to use indexes in the other_r section
             other_records = select_all(other_index[self_key])
             other_to_check = [x for x in range(len(other_records))]
@@ -411,18 +416,26 @@ class DataSet:
             self_to_check = [x for x in range(len(self_records))]
             if len(other_to_check) != len(self_to_check): return False
             # setting up a *list of indexes* to avoid manipulating the record objects inplace
-            for self_i in self_to_check:
+            self_i_i = 0
+            while self_i_i < len(self_to_check):
+                other_i_i = 0
+                self_i = self_to_check[self_i_i]
                 other_r = None
                 self_r = self_records[self_i]
-                for other_i in other_to_check:
+                while other_i_i < len(other_to_check):
+                    other_i = other_to_check[other_i_i]
                     other_r = other_records[other_i]
                     if other_r == self_r:
                         other_to_check.remove(other_i)
                         self_to_check.remove(self_i)
+                        self_i_i = -1 # go to start of new list
                         break
-                if other_r == self_r:
-                    break
-            if len(self_to_check) > 0 or len(other_to_check) > 0: return False 
+                    other_i_i += 1
+                if (len(self_to_check) == 0): break
+                self_i_i += 1
+            if len(self_to_check) > 0 or len(other_to_check) > 0: 
+                # problem with duplicate keys (fairly common scenario!)
+                return False 
             # i.e. there's not exactly 1 match for every record
         return True
 

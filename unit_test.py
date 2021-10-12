@@ -232,8 +232,8 @@ class TestDataSet(unittest.TestCase):
         merge_soft = merge(ds2, ds, "title", "title")
         merge_hard = merge(ds2, ds, "title", "title", True)
 
-        write_out(merge_soft.records,"./test_output/merge_soft.json")
-        write_out(merge_hard.records,"./test_output/merge_hard.json")
+        # write_out(merge_soft.records,"./test_output/merge_soft.json")
+        # write_out(merge_hard.records,"./test_output/merge_hard.json")
 
     def test_merge_records_full_outer(self):
         cols = [
@@ -311,16 +311,6 @@ class TestDataSet(unittest.TestCase):
                 "id": "merge_2",
                 "multiselect": None,
                 "select": "1",
-            },
-            {
-                "id": 'merge_left_1',
-                "multiselect": ['0','1','2','3','4'],
-                "select": "0",
-            },
-            {
-                "id": 'merge_right_1',
-                "multiselect": ['0','1','2','3','4'],
-                "select": "0",
             }
         ]
 
@@ -330,12 +320,14 @@ class TestDataSet(unittest.TestCase):
         right.add_records(right_records)
         merged_manual = DataSet(cols)
         merged_manual.add_records(merge_reference)
-        merged = merge(left, right, "id", "id")
+        inner_merge = merge(left, right, "id", "id", left_join=False, right_join=False)
 
-        write_out(left.records,"./test_output/merge_left.json")
-        write_out(right.records,"./test_output/merge_right.json")
+        # write_out(left.records,"./test_output/merge_left.json")
+        # write_out(right.records,"./test_output/merge_right.json")
         write_out(merged_manual.records,"./test_output/merge_sample.json")
-        write_out(merged.records,"./test_output/merged_test.json")
+        write_out(inner_merge.records,"./test_output/merged_test.json")
+
+        self.assertTrue(inner_merge.equivalent_to(merged_manual))
 
 
     def test_convert_types_correct(self):
@@ -632,7 +624,7 @@ class TestDataSet(unittest.TestCase):
                 "select": "2",
             },
             {
-                "id": "3",
+                "id": "2",
                 "date": datetime(1997, 3, 26, 12, 4),
                 "multiselect": ['3','4','5','6','7'],
                 "select": "3",
@@ -651,7 +643,7 @@ class TestDataSet(unittest.TestCase):
                 "select": "0",
             },
             {
-                "id": "3",
+                "id": "2",
                 "date": datetime(1997, 3, 26, 12, 4),
                 "multiselect": ['3','4','5','6','7'],
                 "select": "3",

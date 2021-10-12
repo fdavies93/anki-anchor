@@ -1,6 +1,5 @@
 from enum import Enum
 from abc import ABC
-from functools import reduce
 from typing import Text
 from anki.cards import Card
 from anki.models import NoteType
