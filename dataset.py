@@ -174,7 +174,7 @@ class DataSet:
             r = self._add_record_from_dict(d)
         return r
 
-    def remap(self, map : DataMap):
+    def remap(self, map : DataMap) -> OperationStatus:
         ''' Changes column names and types according to the map object, until they all match the desired mapping.
         Returns a copy of self with columns remapped.
         map: A dictionary, with the source_column as key and DataColumn (i.e. target name and type) as value. Also 
@@ -195,10 +195,13 @@ class DataSet:
                 # most likely this is a problem with /generating/ the mapping or the mapping being outdated, not the remapping process, 
                 # so for now we're simply returning some information on this in the OperationStatus
                 clone.drop_column(col.name)
-            if map.columns[col.name].name != col.name:
-                clone.rename_column(col.name,map.columns[col.name].name) # this could be dangerous - we're modifying what we're looping over
-            if col.type != map.columns[col.name].type:
-                type_change_results[col.name] = clone.change_column_type(col.name, map.columns[col.name].type)
+            else:
+                if col.type != map.columns[col.name].type:
+                    type_change_results[col.name] = clone.change_column_type(col.name, map.columns[col.name].type)
+                if map.columns[col.name].name != col.name:
+                    # print( self.column_names )
+                    # print( "Renaming " + col.name + " to " + map.columns[col.name].name )
+                    clone.rename_column(col.name,map.columns[col.name].name) # this could be dangerous - we're modifying what we're looping over
 
         total_errors = sum([x.non_critical_errors for x in type_change_results.values()])
         result_info = {
@@ -248,6 +251,8 @@ class DataSet:
         return self._columns[self.get_column_index(key)]
 
     def rename_column(self, old_name, new_name):
+        # print (self._column_names)
+        # print (old_name)
         if old_name not in self._column_names:
             raise ColumnError(COLUMN_ERROR_CODE.COLUMN_NOT_FOUND)
         if new_name in self._column_names:
@@ -303,7 +308,7 @@ class DataSet:
     def change_column_type(self, source_column : str, new_type : COLUMN_TYPE, new_column_name : str = None, inplace = True):
         ''' Changes column type, modifying in-place by default or creating a new column if given a name. '''
         if source_column not in self._column_names:
-            raise ColumnError(COLUMN_ERROR_CODE.COLUMN_NOT_FOUND)
+            raise ColumnError(COLUMN_ERROR_CODE.COLUMN_NOT_FOUND, source_column)
 
         source_type = self.get_column(source_column).type
 
@@ -327,6 +332,8 @@ class DataSet:
                 self.rename_column(source_column, new_column_name)
                 dest_column = new_column_name
             else: dest_column = source_column
+            self._columns[self._column_names[dest_column]].type = new_type
+            # changing column type flag - but we haven't done anything to the data yet
                 
 
         # if new_column_name != None:
@@ -370,7 +377,9 @@ class DataSet:
         ''' Checks if dataset is equivalent to another dataset: i.e. its columns are the same and its records can be matched to exactly one other record in the other dataset. '''
         # TODO: Add function to determine the optimal index for a key, to optimise when key isn't provided
         if not have_same_columns(self, other): 
-            # print ("Columns differ.")
+                # print ("Columns differ.")
+                # print (self.columns)
+                # print (other.columns)
             return False
         if key_column != None and (key_column not in self.column_names or key_column not in other.column_names):
             raise ColumnError(COLUMN_ERROR_CODE.COLUMN_NOT_FOUND)
@@ -434,6 +443,7 @@ class DataSet:
                 if (len(self_to_check) == 0): break
                 self_i_i += 1
             if len(self_to_check) > 0 or len(other_to_check) > 0: 
+                # print ("Index length is unequal.")
                 return False 
             # i.e. there's not exactly 1 match for every record
         return True

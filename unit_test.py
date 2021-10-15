@@ -1,4 +1,5 @@
 from json.encoder import JSONEncoder
+from os import unlink, write
 from dataset import *
 import unittest
 from os.path import dirname, exists, join, realpath
@@ -16,6 +17,331 @@ class RecordSerializer(JSONEncoder):
         if isinstance(o,DataRecord):
             return o.asdict()
         return json.JSONEncoder.default(self, o)
+
+class TestRemap(unittest.TestCase):
+    def setUp(self) -> None:
+        self.cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.DATE, "date"),
+            DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            DataColumn(COLUMN_TYPE.SELECT, "select"),
+            DataColumn(COLUMN_TYPE.TEXT, "bad_data")
+        ]
+        self.records = [
+            {
+                "id": "0",
+                "date": datetime(1994, 3, 23, 12, 1),
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+                "bad_data": "xyz",
+            },
+            {
+                "id": "1",
+                "date": datetime(1995, 3, 24, 12, 2),
+                "multiselect": ['1','2','3','4','5'],
+                "select": "1",
+                "bad_data": "000 000 000"
+            },
+            {
+                "id": "2",
+                "date": datetime(1996, 3, 25, 12, 3),
+                "multiselect": ['2','3','4','5','6'],
+                "select": "2",
+                "bad_data": None
+            },
+            {
+                "id": "3",
+                "date": datetime(1997, 3, 26, 12, 4),
+                "multiselect": ['3','4','5','6','7'],
+                "select": "3",
+                "bad_data": None
+            }
+        ]
+
+    def test_remap_drop_columns(self):
+        mapping_1 = DataMap({ "id": DataColumn(COLUMN_TYPE.TEXT, "id"), "select": DataColumn(COLUMN_TYPE.SELECT, "select") }, DataSetFormat())
+        result_1_cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.SELECT, "select")
+        ]
+        result_1_records = [
+            {
+                "id": "0",
+                "select": "0",
+            },
+            {
+                "id": "1",
+                "select": "1",
+            },
+            {
+                "id": "2",
+                "select": "2",
+            },
+            {
+                "id": "3",
+                "select": "3",
+            }
+        ]
+        mapping_2 = DataMap({ "id": DataColumn(COLUMN_TYPE.TEXT, "id"), "date": DataColumn(COLUMN_TYPE.DATE, "date") }, DataSetFormat())
+        result_2_cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.DATE, "date")
+        ]
+        result_2_records = [
+            {
+                "id": "0",
+                "date": datetime(1994, 3, 23, 12, 1)
+            },
+            {
+                "id": "1",
+                "date": datetime(1995, 3, 24, 12, 2)
+            },
+            {
+                "id": "2",
+                "date": datetime(1996, 3, 25, 12, 3)
+            },
+            {
+                "id": "3",
+                "date": datetime(1997, 3, 26, 12, 4)
+            }
+        ]
+        ds = DataSet(self.cols, self.records)
+        ds_op_1 = ds.remap(mapping_1)
+        ds_op_2 = ds.remap(mapping_2)
+
+        self.assertEqual(ds_op_1.status, OP_STATUS_CODE.OP_SUCCESS)
+        self.assertEqual(ds_op_2.status, OP_STATUS_CODE.OP_SUCCESS)
+
+        ds_remap_1 = ds_op_1.op_returns["remapped_data"]
+        ds_remap_2 = ds_op_2.op_returns["remapped_data"]
+        result_1 = DataSet(result_1_cols, result_1_records)
+        result_2 = DataSet(result_2_cols, result_2_records)
+
+        self.assertTrue( ds_remap_1.equivalent_to(result_1) )
+        self.assertTrue( ds_remap_2.equivalent_to(result_2) )
+
+    def test_remap_change_columns(self):
+        mapping_1 = DataMap({ "id": DataColumn(COLUMN_TYPE.TEXT, "id"), "date": DataColumn(COLUMN_TYPE.DATE, "great_date"), "bad_data": DataColumn(COLUMN_TYPE.DATE, "bad_date") }, DataSetFormat())
+        result_1_cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.DATE, "great_date"),
+            DataColumn(COLUMN_TYPE.DATE, "bad_date")
+        ]
+        result_1_records = [
+            {
+                "id": "0",
+                "great_date": datetime(1994, 3, 23, 12, 1),
+                "bad_date": None,
+            },
+            {
+                "id": "1",
+                "great_date": datetime(1995, 3, 24, 12, 2),
+                "bad_date": None
+            },
+            {
+                "id": "2",
+                "great_date": datetime(1996, 3, 25, 12, 3),
+                "bad_date": None
+            },
+            {
+                "id": "3",
+                "great_date": datetime(1997, 3, 26, 12, 4),
+                "bad_date": None
+            }
+        ]
+
+        ds = DataSet(self.cols, self.records)
+
+        # ds.drop_column("date")
+        # write_out(ds.records,"./test_output/remap.json")
+
+        # print(ds.column_names)
+        ds_op_1 = ds.remap(mapping_1)
+
+        self.assertEqual(ds_op_1.status, OP_STATUS_CODE.OP_SUCCESS)
+
+        ds_remap_1 = ds_op_1.op_returns["remapped_data"]
+        result_1 = DataSet(result_1_cols, result_1_records)
+
+        self.assertTrue( ds_remap_1.equivalent_to(result_1) )
+
+
+
+
+class TestDataMerges(unittest.TestCase):
+    def setUp(self) -> None:
+        self.cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            DataColumn(COLUMN_TYPE.SELECT, "select")
+        ]
+        self.left_records = [
+            {
+                "id": "merge_1",
+                "multiselect": None,
+                "select": None,
+            },
+            {
+                "id": "merge_2",
+                "multiselect": ['0','1','2','3','4'],
+                "select": None,
+            },
+            {
+                "id": "merge_2",
+                "multiselect": None,
+                "select": None,
+            },
+            {
+                "id": 'merge_left_1',
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            }
+        ]
+        self.right_records = [
+            {
+                "id": "merge_1",
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            },
+            {
+                "id": "merge_2",
+                "multiselect": None,
+                "select": "0",
+            },
+            {
+                "id": "merge_2",
+                "multiselect": None,
+                "select": "1",
+            },
+            {
+                "id": 'merge_right_1',
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            }
+        ]
+
+    def test_inner_merge(self):
+
+        merge_reference = [
+            {
+                "id": "merge_1",
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            },
+            {
+                "id": "merge_2",
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            },
+            {
+                "id": "merge_2",
+                "multiselect": ['0','1','2','3','4'],
+                "select": "1",
+            },
+            {
+                "id": "merge_2",
+                "multiselect": None,
+                "select": "0",
+            },
+            {
+                "id": "merge_2",
+                "multiselect": None,
+                "select": "1",
+            }
+        ]
+
+        left = DataSet(self.cols, self.left_records)
+        right = DataSet(self.cols, self.right_records)
+
+        merged_manual = DataSet(self.cols)
+        merged_manual.add_records(merge_reference)
+        inner_merge = merge(left, right, "id", "id", left_join=False, right_join=False)
+
+        # write_out(left.records,"./test_output/merge_left.json")
+        # write_out(right.records,"./test_output/merge_right.json")
+
+        self.assertTrue(inner_merge.equivalent_to(merged_manual))
+
+    def test_merge_full_outer(self):
+        merge_reference = [
+            {
+                "id": "merge_1",
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            },
+            {
+                "id": "merge_2",
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            },
+            {
+                "id": "merge_2",
+                "multiselect": ['0','1','2','3','4'],
+                "select": "1",
+            },
+            {
+                "id": "merge_2",
+                "multiselect": None,
+                "select": "0",
+            },
+            {
+                "id": "merge_2",
+                "multiselect": None,
+                "select": "1",
+            },
+            {
+                "id": 'merge_left_1',
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            },
+            {
+                "id": 'merge_right_1',
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            }
+        ]
+
+        left = DataSet(self.cols, self.left_records)
+        right = DataSet(self.cols, self.right_records)
+
+        merged_manual = DataSet(self.cols, merge_reference)
+        outer_merge = merge(left, right, "id", "id")
+
+        self.assertTrue( merged_manual.equivalent_to(outer_merge) )
+
+    def test_left_merge(self):
+        merge_reference = [
+            {
+                "id": 'merge_left_1',
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            }
+        ]
+
+        ds_left = DataSet(self.cols, self.left_records)
+        ds_right = DataSet(self.cols, self.right_records)
+
+        merged_manual = DataSet(self.cols, merge_reference)
+        left_merge = merge(ds_left, ds_right, "id", "id", right_join=False, inner_join=False)
+
+        self.assertTrue( merged_manual.equivalent_to(left_merge) )
+
+    def test_right_merge(self):
+        merge_reference = [
+            {
+                "id": 'merge_right_1',
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+            }
+        ]
+
+        ds_left = DataSet(self.cols, self.left_records)
+        ds_right = DataSet(self.cols, self.right_records)
+
+        merged_manual = DataSet(self.cols, merge_reference)
+        right_merge = merge(ds_left, ds_right, "id", "id", left_join=False, inner_join=False)
+
+        self.assertTrue( merged_manual.equivalent_to(right_merge) )
 
 class TestDataSet(unittest.TestCase):
     def setUp(self) -> None:
@@ -222,112 +548,6 @@ class TestDataSet(unittest.TestCase):
         write_out(append_ignore.records,"./test_output/append_ignore.json")
         # the success of these tests might be down to implementation of dict
         # however it's probably fine, and avoids need to write a sort method
-
-    def test_merge_records(self):
-        ds = DataSet(self.cols)
-        ds2 = DataSet(self.cols)
-        ds.add_records(self.records[6:9])
-        ds2.add_records(self.merge_left_records)
-
-        merge_soft = merge(ds2, ds, "title", "title")
-        merge_hard = merge(ds2, ds, "title", "title", True)
-
-        # write_out(merge_soft.records,"./test_output/merge_soft.json")
-        # write_out(merge_hard.records,"./test_output/merge_hard.json")
-
-    def test_merge_records_full_outer(self):
-        cols = [
-            DataColumn(COLUMN_TYPE.TEXT, "id"),
-            DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
-            DataColumn(COLUMN_TYPE.SELECT, "select")
-        ]
-        left_records = [
-            {
-                "id": "merge_1",
-                "multiselect": None,
-                "select": None,
-            },
-            {
-                "id": "merge_2",
-                "multiselect": ['0','1','2','3','4'],
-                "select": None,
-            },
-            {
-                "id": "merge_2",
-                "multiselect": None,
-                "select": None,
-            },
-            {
-                "id": 'merge_left_1',
-                "multiselect": ['0','1','2','3','4'],
-                "select": "0",
-            }
-        ]
-        right_records = [
-            {
-                "id": "merge_1",
-                "multiselect": ['0','1','2','3','4'],
-                "select": "0",
-            },
-            {
-                "id": "merge_2",
-                "multiselect": None,
-                "select": "0",
-            },
-            {
-                "id": "merge_2",
-                "multiselect": None,
-                "select": "1",
-            },
-            {
-                "id": 'merge_right_1',
-                "multiselect": ['0','1','2','3','4'],
-                "select": "0",
-            }
-        ]
-
-        merge_reference = [
-            {
-                "id": "merge_1",
-                "multiselect": ['0','1','2','3','4'],
-                "select": "0",
-            },
-            {
-                "id": "merge_2",
-                "multiselect": ['0','1','2','3','4'],
-                "select": "0",
-            },
-            {
-                "id": "merge_2",
-                "multiselect": ['0','1','2','3','4'],
-                "select": "1",
-            },
-            {
-                "id": "merge_2",
-                "multiselect": None,
-                "select": "0",
-            },
-            {
-                "id": "merge_2",
-                "multiselect": None,
-                "select": "1",
-            }
-        ]
-
-        left = DataSet(cols)
-        right = DataSet(cols)
-        left.add_records(left_records)
-        right.add_records(right_records)
-        merged_manual = DataSet(cols)
-        merged_manual.add_records(merge_reference)
-        inner_merge = merge(left, right, "id", "id", left_join=False, right_join=False)
-
-        # write_out(left.records,"./test_output/merge_left.json")
-        # write_out(right.records,"./test_output/merge_right.json")
-        write_out(merged_manual.records,"./test_output/merge_sample.json")
-        write_out(inner_merge.records,"./test_output/merged_test.json")
-
-        self.assertTrue(inner_merge.equivalent_to(merged_manual))
 
 
     def test_convert_types_correct(self):
