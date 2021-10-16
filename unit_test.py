@@ -165,6 +165,152 @@ class TestRemap(unittest.TestCase):
 
         self.assertTrue( ds_remap_1.equivalent_to(result_1) )
 
+class TestComplexTransforms(unittest.TestCase):
+    def setUp(self) -> None:
+        self.source_cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.DATE, "date"),
+            DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            DataColumn(COLUMN_TYPE.SELECT, "select"),
+            DataColumn(COLUMN_TYPE.TEXT, "bad_data"),
+            DataColumn(COLUMN_TYPE.TEXT, "lose_this")
+        ]
+        self.source_records = [
+            {
+                "id": "0",
+                "date": datetime(1994, 3, 23, 12, 1),
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+                "bad_data": "xyz",
+                "lose_this": None
+            },
+            {
+                "id": "1",
+                "date": datetime(1995, 3, 24, 12, 2),
+                "multiselect": ['1','2','3','4','5'],
+                "select": "1",
+                "bad_data": "000 000 000",
+                "lose_this": None
+            },
+            {
+                "id": "2",
+                "date": datetime(1996, 3, 25, 12, 3),
+                "multiselect": ['2','3','4','5','6'],
+                "select": "2",
+                "bad_data": None,
+                "lose_this": None
+            },
+            {
+                "id": "3",
+                "date": datetime(1997, 3, 26, 12, 4),
+                "multiselect": ['3','4','5','6','7'],
+                "select": "3",
+                "bad_data": None,
+                "lose_this": None
+            }
+        ]
+        self.destination_cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.DATE, "date"),
+            DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            DataColumn(COLUMN_TYPE.SELECT, "select"),
+            DataColumn(COLUMN_TYPE.TEXT, "id_readable")
+        ]
+        self.destination_records = [
+            {
+                "id": "0",
+                "date": datetime(1994, 3, 23, 12, 1),
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+                "id_readable": "id: 0"
+            },
+            {
+                "id": "1",
+                "date": datetime(1995, 3, 24, 12, 2),
+                "multiselect": ['1','2','3','4','5'],
+                "select": "1",
+                "id_readable": "id: 1"
+            },
+            {
+                "id": "2",
+                "date": datetime(1996, 3, 25, 12, 3),
+                "multiselect": ['2','3','4','5','6'],
+                "select": "2",
+                "id_readable": "id: 2"
+            },
+            {
+                "id": "3",
+                "date": datetime(1997, 3, 26, 12, 4),
+                "multiselect": ['3','4','5','6','7'],
+                "select": "3",
+                "id_readable": "id: 3"
+            }
+        ]
+
+        self.merged_cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.DATE, "date"),
+            DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            DataColumn(COLUMN_TYPE.SELECT, "select"),
+            DataColumn(COLUMN_TYPE.DATE, "bad_date"),
+            DataColumn(COLUMN_TYPE.TEXT, "id_readable")
+        ]
+
+        self.merged_records = [
+            {
+                "id": "0",
+                "date": datetime(1994, 3, 23, 12, 1),
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+                "id_readable": "id: 0",
+                "bad_date": None,
+            },
+            {
+                "id": "1",
+                "date": datetime(1995, 3, 24, 12, 2),
+                "multiselect": ['1','2','3','4','5'],
+                "select": "1",
+                "id_readable": "id: 1",
+                "bad_date": None
+            },
+            {
+                "id": "2",
+                "date": datetime(1996, 3, 25, 12, 3),
+                "multiselect": ['2','3','4','5','6'],
+                "select": "2",
+                "id_readable": "id: 2",
+                "bad_date": None
+            },
+            {
+                "id": "3",
+                "date": datetime(1997, 3, 26, 12, 4),
+                "multiselect": ['3','4','5','6','7'],
+                "select": "3",
+                "id_readable": "id: 3",
+                "bad_date": None
+            }
+        ]
+
+    def test_full_merge(self):
+        ds_source = DataSet(self.source_cols,self.source_records)
+        ds_dest = DataSet(self.destination_cols, self.destination_records)
+        
+        map_columns = {
+            "id": DataColumn(COLUMN_TYPE.TEXT, "id"),
+            "date": DataColumn(COLUMN_TYPE.DATE, "date"),
+            "multiselect": DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            "select": DataColumn(COLUMN_TYPE.SELECT, "select"),
+            "bad_data": DataColumn(COLUMN_TYPE.DATE, "bad_date") # we lose lose_this just to verify dropping columns works as intended
+        }
+
+        mapping = DataMap(map_columns, DataSetFormat())
+
+        ds_remapped = ds_source.remap(mapping).op_returns["remapped_data"]
+
+        ds_sample = DataSet(self.merged_cols, self.merged_records)
+        ds_merged = merge(ds_remapped,ds_dest, left_key="id", right_key="id")
+
+        self.assertTrue( ds_sample.equivalent_to(ds_merged) )
 
 
 

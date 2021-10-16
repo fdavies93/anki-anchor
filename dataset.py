@@ -167,6 +167,9 @@ class DataSet:
         return [self.add_record(rec) for rec in records]
 
     def add_record(self, record:Union[dict,DataRecord]) -> DataRecord:
+        ''' Adds record to dataset. 
+        In case where record has fewer columns than the dataset it's inserting into, extra columns are filled with None.
+        In case where record has columns that don't exist in the dataset, these columns are ignored.'''
         if isinstance(record, dict): 
             r = self._add_record_from_dict(record)
         else:
@@ -377,9 +380,9 @@ class DataSet:
         ''' Checks if dataset is equivalent to another dataset: i.e. its columns are the same and its records can be matched to exactly one other record in the other dataset. '''
         # TODO: Add function to determine the optimal index for a key, to optimise when key isn't provided
         if not have_same_columns(self, other): 
-                # print ("Columns differ.")
-                # print (self.columns)
-                # print (other.columns)
+            # print ("Columns differ.")
+            # print (self.columns)
+            # print (other.columns)
             return False
         if key_column != None and (key_column not in self.column_names or key_column not in other.column_names):
             raise ColumnError(COLUMN_ERROR_CODE.COLUMN_NOT_FOUND)
@@ -482,33 +485,62 @@ def select_all(input) -> list:
         return input
     else: return [input]
 
-def merge(left : DataSet, right : DataSet, left_key : str, right_key : str, overwrite = False, force_uniques = False, left_join = True, right_join = True, inner_join = True) -> DataSet:
+def merge(left : DataSet, right : DataSet, left_key : str, right_key : str, overwrite = False, left_join = True, right_join = True, inner_join = True) -> DataSet:
     ''' Defaults to the equivalent of a full outer join (left, right, and inner records are all retained.) '''
 
-    if not have_same_columns(left, right): raise DataError(DATA_ERROR_CODE.DATA_COLUMNS_INCOMPATIBLE)
+    if not left_join and not right_join and not inner_join:
+        return DataSet() # no records or columns
+    # if not have_same_columns(left, right): raise DataError(DATA_ERROR_CODE.DATA_COLUMNS_INCOMPATIBLE)
+
+    columns_left = { cn: left.get_column(cn) for cn in left.column_names }
+    columns_right = { cn: right.get_column(cn) for cn in right.column_names }
+
+    left_col_set = set( cn for cn in left.column_names )
+    right_col_set = set( cn for cn in right.column_names )
+
+    inner_cols_set = left_col_set.intersection(right_col_set)
+    exclusive_left_col_set = left_col_set.difference(right_col_set)
+    exclusive_right_col_set = right_col_set.difference(left_col_set)
+
+    new_columns = []
+
+    # always add columns in both sets
+    for col_name in inner_cols_set:
+        if columns_left[col_name].type != columns_right[col_name].type:
+            raise ColumnError(COLUMN_ERROR_CODE.COLUMN_TYPE_INCOMPATIBLE, "Columns "+col_name+" have same name but differing types; cannot merge data.") 
+        else: new_columns.append(columns_left[col_name])
+
+    if left_join:
+        for col_name in exclusive_left_col_set: new_columns.append(columns_left[col_name])
+
+    if right_join:
+        for col_name in exclusive_right_col_set: new_columns.append(columns_right[col_name])
 
     index_left = build_key_index(left, left_key)
     index_right = build_key_index(right, right_key)
     left_keys = set(k for k in index_left.keys())
     right_keys = set(k for k in index_right.keys())
-    new_set = DataSet(left.columns)
+
+    new_set = DataSet(new_columns)
 
     if inner_join:
         for k in left_keys.intersection(right_keys):
             # 
             # force_uniques forces only a single unique outcome to an inner join 
             # i.e. it assumes keys are unique, although this might be untrue
-            #         
-            if force_uniques:
-                lrs = [select_first_or_only(index_left[k])]
-                rrs = [select_first_or_only(index_right[k])]
-            else:
-                lrs = select_all(index_left[k])
-                rrs = select_all(index_right[k])
+            # removed force_uniques option for making result of operations unpredictable
+            # (it makes result dependent on order of storage of records)
+            #
+            # if force_uniques:
+            #     lrs = [select_first_or_only(index_left[k])]
+            #     rrs = [select_first_or_only(index_right[k])]
+            # else:
+            lrs = select_all(index_left[k])
+            rrs = select_all(index_right[k])
 
             for lr in lrs:
                 for rr in rrs:        
-                    new_record = merge_records(lr, rr, overwrite)
+                    new_record = merge_records(lr, rr, new_set, overwrite=overwrite)
                     new_set.add_record(new_record)
 
     if left_join:
@@ -523,23 +555,43 @@ def merge(left : DataSet, right : DataSet, left_key : str, right_key : str, over
 
     return new_set
 
-def merge_records(left: DataRecord, right: DataRecord, overwrite=False):
+def merge_records(left: DataRecord, right: DataRecord, dataset:DataSet, overwrite=False):
     new_fields = {}
-    for name, i in left._column_names.items():
-        right_val = right[name]
-        left_val = left[name]
-        if (left_val != None and right_val == None) or overwrite:
+
+    for col_name in dataset.column_names:
+        i = dataset.get_column_index(col_name)
+        if col_name in left._column_names and col_name in right._column_names:
+            # in both sources
+            right_val = right[col_name]
+            left_val = left[col_name]
+            if (left_val != None and right_val == None) or overwrite:
+                new_fields[i] = left_val
+            else: new_fields[i] = right_val # note this includes scenario where both are None
+        elif col_name in left._column_names:
+            # only in left
+            left_val = left[col_name]
             new_fields[i] = left_val
-        else: new_fields[i] = right_val # note this includes scenario where both are None
-    return DataRecord(left._column_names, new_fields)
+        elif col_name in right._column_names:
+            # only in right
+            right_val = right[col_name]
+            new_fields[i] = right_val
+        else:
+            # in neither
+            new_fields[i] = None
+
+    return DataRecord(dataset._column_names, new_fields)
 
 def have_same_columns(left: DataSet, right: DataSet) -> bool:
     ''' Returns true if columns are identical between two datasets. '''
     left_column_names = set(left.column_names)
     right_column_names = set(right.column_names)
-    if len(left_column_names.difference(right_column_names)) > 0: return False # column names aren't the same
+    if len(left_column_names.difference(right_column_names)) > 0: 
+        # print("Column names differ.")
+        return False # column names aren't the same
     for left_key in left_column_names:
-        if left.get_column(left_key) != right.get_column(left_key): return False # column types are different
+        if left.get_column(left_key) != right.get_column(left_key): 
+            # print ("Column types differ in " + left_key)
+            return False # column types are different
     return True
 
 def append(left: DataSet, right: DataSet, left_key: str, right_key: str, ignore_duplicates: bool = True):
