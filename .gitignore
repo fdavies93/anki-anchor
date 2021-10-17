@@ -4,5 +4,6 @@ examples
 config.json
 __pycache__
 test_output
+test_input
 htmlcov
 .coverage

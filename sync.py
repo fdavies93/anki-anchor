@@ -1,15 +1,23 @@
 from enum import Enum
 from abc import ABC
+from os import read
 from typing import Text
-from anki.cards import Card
-from anki.models import NoteType
-from anki.notes import Note
+
 import requests
-from aqt import mw
-from aqt.utils import showInfo, qconnect
-from aqt.qt import *
-from re import sub
+
 from dataset import *
+import json
+from os.path import dirname, exists, join, realpath
+import asyncio
+
+class SYNC_ERROR_CODE(Enum):
+    PARAMETER_NOT_FOUND = 0,
+    FILE_ERROR = 1
+
+class SyncError(ValueError):
+    def __init__(self, error_code: SYNC_ERROR_CODE, message="Sync error."):
+        self.error_code = error_code
+        super().__init__(message)
 
 class BearerAuth(requests.auth.AuthBase):
     def __init__(self, token):
@@ -20,31 +28,44 @@ class BearerAuth(requests.auth.AuthBase):
 
 class SourceReader(ABC):
     '''Read data from some source and turn it into a Python record.'''
-    def read_record():
+    async def read_record(self):
         '''Get a given record.'''
 
-    def read_records():
+    async def read_records(self, limit : int = -1, next_iterator = None):
         '''Get multiple records.'''
 
-    def get_columns():
+    async def get_columns(self):
         '''Get columns with their data type as a standardised type.'''
 
-    def get_databases():
-        '''Get database names.'''
+    async def get_tables(self):
+        '''Get a list of tables. In Anki's case this is a list of card_types and how they intersect with decks.'''
     
-    def get_record_types():
+    async def get_record_types(self):
         '''Get record subtypes. Mostly a workaround for Anki not having "databases" but decks and card types.'''
 
 class SourceWriter(ABC):
     '''Write data from a Python record to some source.'''
-    def append_record():
-        '''Append one record.'''
+    async def append_record(self, record: DataRecord, dataset: DataSet, callback):
+        '''Append one record asynchronously.'''
 
-    def write_records():
-        '''Append multiple records.'''
+    async def append_records(self, records: list, dataset: DataSet, callback):
+        '''Append multiple records asynchronously.'''
+        
+    async def amend_record(self, key_col: str, record: DataRecord, dataset: DataSet):
+        '''Amend record with new fields asynchronously.'''
+
+    async def amend_records(self, key_col: str, record: DataRecord, dataset: DataSet):
+        '''Amend records in source with new values from dataset, using key_col to join the two tables.'''
+
+    def append_record_sync(self, record: DataRecord, dataset: DataSet):
+        '''Append one record synchronously.'''
     
-    def amend_record():
-        '''Amend record with new fields.'''
+    def append_records_sync(self, records: list, dataset: DataSet):
+        '''Append multiple records synchronously.'''
+
+    def amend_record_sync(self, key_val, key_col: str, record: DataRecord, dataset: DataSet):
+        '''Amend record synchronously.'''
+
 
 class SourceReadWriter(object):
     '''Read and write data from some source to a Python representation of the record.'''
@@ -52,46 +73,58 @@ class SourceReadWriter(object):
         self.reader = reader
         self.writer = writer
 
-class AnkiWriter(SourceWriter):
-    '''Write records to Anki.'''
+class JsonWriter(SourceWriter):
+    ''' Write records to a JSON file. '''
+    # records are basically written as-is, though date columns are transformed to text
+    # header is added to list out columns and types
+    # {
+    #   header: [ "COLUMN_NAME": COLUMN_TYPE ]
+    #   records: [ RECORD ...]
+    # }
 
-class AnkiReader(SourceReader):
-    '''Read records from Anki.'''
-    def get_databases(self):
-        '''Returns a list of note types and decks.'''
-        note_types = mw.col.models.all_names_and_ids()
-        decks = mw.col.decks.all_names_and_ids(include_filtered=False)
-        return {"note_types": note_types, "decks": decks}
+class JsonReader(SourceReader):
+    ''' Read records from a JSON file. '''
+    def __init__(self, parameters : dict):
+        if "file_path" not in parameters:
+            raise SyncError(SYNC_ERROR_CODE.PARAMETER_NOT_FOUND, "No path parameter found when initialising JsonReader.")
+        self.path = join(dirname(realpath(__file__)), parameters["file_path"])
+    
+    async def read_records(self, limit : int = -1, next_iterator = None):
+        # open file
+        try:
+            with open(self.path, 'r', encoding="utf-8") as f:
+                raw_json = json.load(f)
+        except:
+            raise SyncError(SYNC_ERROR_CODE.FILE_ERROR, "Error reading file in.")
 
-    def get_columns(self, note_type: NoteType):
-        nt = mw.col.models.get(note_type["id"])
-        field_names = mw.col.models.fieldNames(nt)
-        return [ self._field_to_column(fn) for fn in field_names ]
+        format_raw = raw_json["header"]["format"]
+        format_obj = DataSetFormat( multiselect_delimiter= format_raw["multiselect_delimiter"], time_format=format_raw["time_format"] )
 
-    def get_records(self, deck_name, note_type_name: str, columns):
-        note_ids = mw.col.find_notes(f"deck:\"{deck_name}\" note:\"{note_type_name}\"")
-        # note type MUST be consistent for 
-        records = [ self._note_to_record(mw.col.getNote(id)) for id in note_ids ]
-        # return RecordReadDataType(columns, records)
-        return records
+        columns_raw : dict = raw_json["header"]["columns"]
+        columns_obj = [ DataColumn(columns_raw[col], col) for col in columns_raw ]
+        
+        date_cols = []
 
-    def _field_to_column(self, fieldName: str):
-        if fieldName == "tags": type = COLUMN_TYPE.MULTI_SELECT
-        else: type = COLUMN_TYPE.TEXT
-        return DataColumn(type, fieldName)
+        for col in columns_raw:
+            if columns_raw[col] == COLUMN_TYPE.DATE:
+                columns_raw[col] = COLUMN_TYPE.TEXT
+                date_cols.append(col)
 
-    def _note_to_record(self, note: Note):
-        out_dict = {}
-        for k, v in note.items():
-            if k != "tags":
-                out_dict[k] = self._remove_html_basic(v)
-        out_dict["tags"] = note.tags
-        return out_dict
+        ds = DataSet(columns_obj, records=raw_json["records"], format=format_obj)
+        
+        for date_col in date_cols:
+            ds.change_column_type(date_col, COLUMN_TYPE.DATE) # reformat all dates in the file to actually be datetime objects
 
-    def _remove_html_basic(self, string: str):
-        # This is probably a bit hacky, but should be ok.
-        # Proper HTML handling requires an XML library.
-        return sub("<[^>]*>", "", string)
+        return ds
+        # print (raw_json)
+
+class TsvWriter(SourceWriter):
+    ''' Write records to a TSV file. '''
+
+class TsvReader(SourceReader): 
+    ''' Read records from a TSV file. '''
+
+
 
 class NotionWriter(SourceWriter):
     '''Write records to Notion.'''
@@ -184,72 +217,72 @@ class NotionReader(SourceReader):
         return prop["created_time"]
 
 
-def AnkiReadWriter() -> SourceReadWriter:
-    return SourceReadWriter(AnkiReader(), AnkiWriter())
+# def AnkiReadWriter() -> SourceReadWriter:
+#     return SourceReadWriter(AnkiReader(), AnkiWriter())
 
-def NotionReadWriter() -> SourceReadWriter:
-    return SourceReadWriter(NotionReader(), NotionWriter())
+# def NotionReadWriter() -> SourceReadWriter:
+#     return SourceReadWriter(NotionReader(), NotionWriter())
 
-class SyncManager(object):
-    '''Manages syncs between Notion and Anki.'''
-    def __init__(self) -> None:
-        self.notion_reader = NotionReader()
-        self.anki_reader = AnkiReader()
-    # Must have options to perform a primary-key merge (overwrite / fill blanks) in addition to simple append
-    # Modes
-    # -- Append - just add the records from the other source to the current source.
-    # -- Soft Merge (must specify merge column) - merge records by merge column, filling any blanks with data from source.
-    # -- Hard Merge (must specify merge column)
-    #
+# class SyncManager(object):
+#     '''Manages syncs between Notion and Anki.'''
+#     def __init__(self) -> None:
+#         self.notion_reader = NotionReader()
+#         self.anki_reader = AnkiReader()
+#     # Must have options to perform a primary-key merge (overwrite / fill blanks) in addition to simple append
+#     # Modes
+#     # -- Append - just add the records from the other source to the current source.
+#     # -- Soft Merge (must specify merge column) - merge records by merge column, filling any blanks with data from source.
+#     # -- Hard Merge (must specify merge column)
+#     #
 
-    def download(self, key: str, database, target_card_type, target_deck, mapping, merge_type=MERGE_TYPE.SOFT_MERGE):
-        '''Download records from a given Notion database to Anki.'''
-        notion = NotionReadWriter()
-        anki = AnkiReadWriter()
-        notion.get_columns(database)
-        # get database columns
-        anki.get_columns(target_deck, target_card_type)
-        # get target card type
-        if merge_type == MERGE_TYPE.APPEND:
-            records = notion.get_all_records()
-            # TODO: remap record columns
-            anki.append_records(records)
-        elif merge_type == MERGE_TYPE.SOFT_MERGE:
-            notion_records = notion.get_all_records()
-            anki_records = anki.get_all_records()
+#     def download(self, key: str, database, target_card_type, target_deck, mapping, merge_type=MERGE_TYPE.SOFT_MERGE):
+#         '''Download records from a given Notion database to Anki.'''
+#         notion = NotionReadWriter()
+#         anki = AnkiReadWriter()
+#         notion.get_columns(database)
+#         # get database columns
+#         anki.get_columns(target_deck, target_card_type)
+#         # get target card type
+#         if merge_type == MERGE_TYPE.APPEND:
+#             records = notion.get_all_records()
+#             # TODO: remap record columns
+#             anki.append_records(records)
+#         elif merge_type == MERGE_TYPE.SOFT_MERGE:
+#             notion_records = notion.get_all_records()
+#             anki_records = anki.get_all_records()
             
-        # for each record
-        # ---- create a new anki card
-        # ---- fill fields using mapping and source card
-        pass
+#         # for each record
+#         # ---- create a new anki card
+#         # ---- fill fields using mapping and source card
+#         pass
 
-    def upload(self, key: str, database, source_card_type, source_deck, mapping):
-        '''Upload records to a given Notion database from Anki.'''
-        # get database columns
-        # get target card type
-        # verify mappings between target_card_type and target_deck
-        # if mappings are good, then:
-        # -- for each card:
-        # ---- create a new record
-        # ---- fill fields using mapping and source card
-        pass
+#     def upload(self, key: str, database, source_card_type, source_deck, mapping):
+#         '''Upload records to a given Notion database from Anki.'''
+#         # get database columns
+#         # get target card type
+#         # verify mappings between target_card_type and target_deck
+#         # if mappings are good, then:
+#         # -- for each card:
+#         # ---- create a new record
+#         # ---- fill fields using mapping and source card
+#         pass
 
-    def get_anki_card_types(self):
-        ar = AnkiReader()
-        return ar.get_databases()
+#     def get_anki_card_types(self):
+#         ar = AnkiReader()
+#         return ar.get_databases()
 
-    def get_anki_fields(self, card_type):
+#     def get_anki_fields(self, card_type):
 
-        pass
+#         pass
 
-    def get_notion_fields(self):
-        pass
+#     def get_notion_fields(self):
+#         pass
 
-    def list_databases(self, key):
-        # notion search api with filter
-        pass
+#     def list_databases(self, key):
+#         # notion search api with filter
+#         pass
 
-    def list_database_columns(self, key, database):
-        pass
+#     def list_database_columns(self, key, database):
+#         pass
 
-sync = SyncManager()
+# sync = SyncManager()

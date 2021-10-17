@@ -1,10 +1,12 @@
 from json.encoder import JSONEncoder
 from os import unlink, write
 from dataset import *
+from sync import JsonReader
 import unittest
 from os.path import dirname, exists, join, realpath
 import json
 from datetime import date, datetime
+import asyncio
 
 def write_out(input: DataSet,relative_path):
     saved_path = join(dirname(realpath(__file__)), relative_path)
@@ -17,6 +19,14 @@ class RecordSerializer(JSONEncoder):
         if isinstance(o,DataRecord):
             return o.asdict()
         return json.JSONEncoder.default(self, o)
+
+class TestJsonSync(unittest.TestCase):
+
+    def test_basic_read(self):
+        reader = JsonReader({"file_path": "./test_input/json_basic_test.json"})
+        ds : DataSet = asyncio.run( reader.read_records() )
+        ds.drop_column("date_added")
+        write_out(ds.records,"./test_output/json_read_test.json")
 
 class TestRemap(unittest.TestCase):
     def setUp(self) -> None:
@@ -214,7 +224,8 @@ class TestComplexTransforms(unittest.TestCase):
             DataColumn(COLUMN_TYPE.DATE, "date"),
             DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
             DataColumn(COLUMN_TYPE.SELECT, "select"),
-            DataColumn(COLUMN_TYPE.TEXT, "id_readable")
+            DataColumn(COLUMN_TYPE.TEXT, "id_readable"),
+            DataColumn(COLUMN_TYPE.TEXT, "all_nulls")
         ]
         self.destination_records = [
             {
@@ -222,28 +233,32 @@ class TestComplexTransforms(unittest.TestCase):
                 "date": datetime(1994, 3, 23, 12, 1),
                 "multiselect": ['0','1','2','3','4'],
                 "select": "0",
-                "id_readable": "id: 0"
+                "id_readable": "id: 0",
+                "all_nulls": None
             },
             {
                 "id": "1",
                 "date": datetime(1995, 3, 24, 12, 2),
                 "multiselect": ['1','2','3','4','5'],
                 "select": "1",
-                "id_readable": "id: 1"
+                "id_readable": "id: 1",
+                "all_nulls": None
             },
             {
                 "id": "2",
                 "date": datetime(1996, 3, 25, 12, 3),
                 "multiselect": ['2','3','4','5','6'],
                 "select": "2",
-                "id_readable": "id: 2"
+                "id_readable": "id: 2",
+                "all_nulls": None
             },
             {
                 "id": "3",
                 "date": datetime(1997, 3, 26, 12, 4),
                 "multiselect": ['3','4','5','6','7'],
                 "select": "3",
-                "id_readable": "id: 3"
+                "id_readable": "id: 3",
+                "all_nulls": None
             }
         ]
 
@@ -253,7 +268,8 @@ class TestComplexTransforms(unittest.TestCase):
             DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
             DataColumn(COLUMN_TYPE.SELECT, "select"),
             DataColumn(COLUMN_TYPE.DATE, "bad_date"),
-            DataColumn(COLUMN_TYPE.TEXT, "id_readable")
+            DataColumn(COLUMN_TYPE.TEXT, "id_readable"),
+            DataColumn(COLUMN_TYPE.TEXT, "all_nulls")
         ]
 
         self.merged_records = [
@@ -264,6 +280,7 @@ class TestComplexTransforms(unittest.TestCase):
                 "select": "0",
                 "id_readable": "id: 0",
                 "bad_date": None,
+                "all_nulls": None
             },
             {
                 "id": "1",
@@ -271,7 +288,8 @@ class TestComplexTransforms(unittest.TestCase):
                 "multiselect": ['1','2','3','4','5'],
                 "select": "1",
                 "id_readable": "id: 1",
-                "bad_date": None
+                "bad_date": None,
+                "all_nulls": None
             },
             {
                 "id": "2",
@@ -279,7 +297,8 @@ class TestComplexTransforms(unittest.TestCase):
                 "multiselect": ['2','3','4','5','6'],
                 "select": "2",
                 "id_readable": "id: 2",
-                "bad_date": None
+                "bad_date": None,
+                "all_nulls": None
             },
             {
                 "id": "3",
@@ -287,7 +306,8 @@ class TestComplexTransforms(unittest.TestCase):
                 "multiselect": ['3','4','5','6','7'],
                 "select": "3",
                 "id_readable": "id: 3",
-                "bad_date": None
+                "bad_date": None,
+                "all_nulls": None
             }
         ]
 
