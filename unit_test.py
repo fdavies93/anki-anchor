@@ -25,7 +25,7 @@ class TestJsonSync(unittest.TestCase):
     def test_basic_read(self):
         reader = JsonReader({"file_path": "./test_input/json_basic_test.json"})
         ds : DataSet = asyncio.run( reader.read_records() )
-        ds.drop_column("date_added")
+        ds.change_column_type("date_added", COLUMN_TYPE.TEXT)
         write_out(ds.records,"./test_output/json_read_test.json")
 
 class TestRemap(unittest.TestCase):

@@ -101,14 +101,15 @@ class JsonReader(SourceReader):
         format_obj = DataSetFormat( multiselect_delimiter= format_raw["multiselect_delimiter"], time_format=format_raw["time_format"] )
 
         columns_raw : dict = raw_json["header"]["columns"]
-        columns_obj = [ DataColumn(columns_raw[col], col) for col in columns_raw ]
         
         date_cols = []
 
         for col in columns_raw:
-            if columns_raw[col] == COLUMN_TYPE.DATE:
+            if COLUMN_TYPE(columns_raw[col]) == COLUMN_TYPE.DATE:
                 columns_raw[col] = COLUMN_TYPE.TEXT
                 date_cols.append(col)
+
+        columns_obj = [ DataColumn(COLUMN_TYPE(columns_raw[col]), col) for col in columns_raw ]
 
         ds = DataSet(columns_obj, records=raw_json["records"], format=format_obj)
         
