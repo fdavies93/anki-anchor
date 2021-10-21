@@ -1,7 +1,7 @@
 from enum import Enum
 from abc import ABC
 from os import read
-from typing import Text
+from typing import Callable, Text
 
 import requests
 
@@ -26,6 +26,12 @@ class BearerAuth(requests.auth.AuthBase):
         r.headers["authorization"] = "Bearer " + self.token
         return r
 
+class RecordSerializer(json.encoder.JSONEncoder):
+    def default(self,o):
+        if isinstance(o,DataRecord):
+            return o.asdict()
+        return json.JSONEncoder.default(self, o)
+
 class SourceReader(ABC):
     '''Read data from some source and turn it into a Python record.'''
     async def read_record(self):
@@ -45,6 +51,10 @@ class SourceReader(ABC):
 
 class SourceWriter(ABC):
     '''Write data from a Python record to some source.'''
+
+    async def create_table(self, dataset: DataSet, callback):
+        ''' Create a table (or file) based on the spec of the dataset. '''
+
     async def append_record(self, record: DataRecord, dataset: DataSet, callback):
         '''Append one record asynchronously.'''
 
@@ -81,6 +91,52 @@ class JsonWriter(SourceWriter):
     #   header: [ "COLUMN_NAME": COLUMN_TYPE ]
     #   records: [ RECORD ...]
     # }
+    def __init__(self, parameters : dict):
+        if "file_path" not in parameters:
+            raise SyncError(SYNC_ERROR_CODE.PARAMETER_NOT_FOUND, "No path parameter found when initialising JsonWriter.")
+        self.path = join(dirname(realpath(__file__)), parameters["file_path"])
+
+    async def create_table(self, dataset: DataSet, callback : Callable = None):
+        ''' Create JSON file with dataset. '''
+        clone = copy.deepcopy(dataset)
+
+        column_dict = {}
+
+        date_columns = []
+        for col in clone.columns:
+            column_dict[col.name] = int(col.type)
+            if col.type == COLUMN_TYPE.DATE:
+                date_columns.append(col.name)
+        for date_col in date_columns:
+            clone.change_column_type(date_col, COLUMN_TYPE.TEXT)
+        
+        format_as_dict = { "multiselect_delimiter": clone.format.multiselect_delimiter, "time_format": clone.format.time_format }
+
+        records_list = [ r.asdict() for r in clone.records ]
+        
+        json_obj = {
+            "header": {
+                "columns": column_dict,
+                "format": format_as_dict
+            },
+            "records": records_list
+        }
+
+        try:
+            with open(self.path, 'w', encoding="utf-8") as f:
+                json.dump(json_obj, f, indent=4)
+        except:
+            raise SyncError(SYNC_ERROR_CODE.FILE_ERROR)
+        
+
+    # async def append_records(self, limit : int = -1, next_iterator = None, callback : Callable = None):
+    #     # convert records to a writable format
+        
+    #     try:
+    #         with open(self.path, 'w', encoding="utf-8") as f:
+    #             pass
+    #     except:
+    #         raise SyncError(SYNC_ERROR_CODE.FILE_ERROR)
 
 class JsonReader(SourceReader):
     ''' Read records from a JSON file. '''
@@ -117,7 +173,6 @@ class JsonReader(SourceReader):
             ds.change_column_type(date_col, COLUMN_TYPE.DATE) # reformat all dates in the file to actually be datetime objects
 
         return ds
-        # print (raw_json)
 
 class TsvWriter(SourceWriter):
     ''' Write records to a TSV file. '''

@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, IntEnum
 from dataclasses import dataclass, field
 from os import error
 from typing import Type, Union
@@ -32,29 +32,29 @@ import copy
 
 # Note: method to generate mapping from another data set is on the GUI model layer (it needs user input to map both sources), not dataset layer.
 
-class MERGE_TYPE(Enum):
+class MERGE_TYPE(IntEnum):
     APPEND = 0
     APPEND_NO_DUPLICATES = 1
     SOFT_MERGE = 2
     HARD_MERGE = 3
 
-class COLUMN_TYPE(Enum):
+class COLUMN_TYPE(IntEnum):
     TEXT = 0 # Most Anki fields; Notion tag field
     SELECT = 1 # Notion select field
     MULTI_SELECT = 2 # Notion multi-select / Anki tags field
     DATE = 3 # Notion date field
 
-class COLUMN_ERROR_CODE(Enum):
+class COLUMN_ERROR_CODE(IntEnum):
     COLUMN_NOT_FOUND = 0,
     COLUMN_ALREADY_EXISTS = 1,
     COLUMN_TYPE_INCOMPATIBLE = 2
 
-class DATA_ERROR_CODE(Enum):
+class DATA_ERROR_CODE(IntEnum):
     DATA_CANNOT_CONVERT = 0,
     DATA_TYPE_INCOMPATIBLE = 1,
     DATA_COLUMNS_INCOMPATIBLE = 2
 
-class OP_STATUS_CODE(Enum):
+class OP_STATUS_CODE(IntEnum):
     OP_SUCCESS = 0,
     OP_FAILURE = 1
 
@@ -220,7 +220,7 @@ class DataSet:
         return [k for k in self._column_names]
 
     @property
-    def columns(self) -> list:
+    def columns(self) -> list[DataColumn]:
         '''Returns list of current column definitions - i.e. not the underlying list _columns.'''
         return [self._columns[v] for v in self._column_names.values()]
 
