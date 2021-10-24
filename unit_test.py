@@ -1,7 +1,7 @@
 from json.encoder import JSONEncoder
 from os import unlink, write
 from dataset import *
-from sync import JsonReader, JsonWriter, TsvWriter
+from sync import JsonReader, JsonWriter, TsvReader, TsvWriter
 import unittest
 from os.path import dirname, exists, join, realpath
 import json
@@ -96,6 +96,36 @@ class TestTsvSync(unittest.TestCase):
             ds.add_record(cur_record)
         writer = TsvWriter({"file_path": "./test_output/tsv_big_write.tsv"})
         asyncio.run( writer.create_table(ds) )
+
+    def test_basic_read(self):
+        map_cols = {
+            "id": DataColumn(COLUMN_TYPE.TEXT, "id"),
+            "date": DataColumn(COLUMN_TYPE.DATE, "date"),
+            "multiselect": DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            "select": DataColumn(COLUMN_TYPE.SELECT, "select"),
+            "bad_data": DataColumn(COLUMN_TYPE.TEXT, "bad_data")
+        }
+        dm = DataMap(map_cols, DataSetFormat())
+        reader = TsvReader({"file_path": "./test_input/tsv_basic_test.tsv"})
+        ds = asyncio.run( reader.read_records(mapping=dm) )
+        writer = TsvWriter({"file_path": "./test_output/tsv_read_test.tsv"})
+        asyncio.run( writer.create_table(ds) )
+
+    def test_big_read(self):
+        map_cols = {
+            "id": DataColumn(COLUMN_TYPE.TEXT, "id"),
+            "date": DataColumn(COLUMN_TYPE.DATE, "date"),
+            "multiselect": DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            "select": DataColumn(COLUMN_TYPE.SELECT, "select"),
+            "bad_data": DataColumn(COLUMN_TYPE.TEXT, "bad_data")
+        }
+        dm = DataMap(map_cols, DataSetFormat())
+        reader = TsvReader({"file_path": "./test_input/tsv_big_read.tsv"})
+        ds = asyncio.run( reader.read_records(mapping=dm) )
+        writer = TsvWriter({"file_path": "./test_output/tsv_big_read_test.tsv"})
+        asyncio.run( writer.create_table(ds) )  
+        json_writer = JsonWriter( {"file_path": "./test_output/tsv_as_json.json"} )
+        asyncio.run(json_writer.create_table(ds))
 
 class TestJsonSync(unittest.TestCase):
 

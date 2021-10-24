@@ -376,7 +376,7 @@ class DataSet:
             raise DataError(DATA_ERROR_CODE.DATA_CANNOT_CONVERT) # this catches invalid conversions without smashing the program
         return output
 
-    def make_write_safe(self) -> OperationStatus:
+    def make_write_safe(self, types : dict[COLUMN_TYPE,COLUMN_TYPE]) -> OperationStatus:
         ''' returns copy of dataset with unsafe columns converted to native values (e.g. datetime to string) 
         and a reference for which columns were thus converted '''
 
@@ -384,10 +384,11 @@ class DataSet:
 
         unsafe_columns = []
         for col in clone.columns:
-            if col.type == COLUMN_TYPE.DATE:
+            if col.type in types:
                 unsafe_columns.append(col.name)
         for unsafe_col in unsafe_columns:
-            clone.change_column_type(unsafe_col, COLUMN_TYPE.TEXT)
+            col_type = clone.get_column(unsafe_col).type
+            clone.change_column_type(unsafe_col, types[col_type])
 
         status = OperationStatus("make_write_safe", OP_STATUS_CODE.OP_SUCCESS, { "converted_columns": unsafe_columns, "safe_data": clone })
 

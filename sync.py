@@ -189,7 +189,13 @@ class TsvWriter(SourceWriter):
         self.path = join(dirname(realpath(__file__)), parameters["file_path"])
     
     def _create_table(self, dataset:DataSet, callback : Callable = None):
-        safe_ds = dataset.make_write_safe().op_returns["safe_data"]
+        conversions = {
+            COLUMN_TYPE.DATE: COLUMN_TYPE.TEXT,
+            COLUMN_TYPE.MULTI_SELECT: COLUMN_TYPE.TEXT,
+            COLUMN_TYPE.SELECT: COLUMN_TYPE.TEXT
+        }
+
+        safe_ds = dataset.make_write_safe(conversions).op_returns["safe_data"]
         record_list = [r.asdict() for r in safe_ds.records]
 
         try:
@@ -212,7 +218,49 @@ class TsvWriter(SourceWriter):
 
 class TsvReader(SourceReader): 
     ''' Read records from a TSV file. '''
+    def __init__(self, parameters : dict):
+        if "file_path" not in parameters:
+            raise SyncError(SYNC_ERROR_CODE.PARAMETER_NOT_FOUND, "No path parameter found when initialising TsvWriter.")
+        self.path = join(dirname(realpath(__file__)), parameters["file_path"])
 
+    def _read_header(self):
+        try:
+            with open(self.path, 'r', encoding="utf") as f:
+                reader = csv.DictWriter(f, delimiter="\t")
+                return reader.fieldnames
+        except:
+            raise SyncError(SYNC_ERROR_CODE.FILE_ERROR)
+
+    def _read_records(self, limit : int = -1, next_iterator = None, mapping : DataMap = None) -> DataSet:
+        if mapping is None: # assume all columns are strings
+                cols = [ DataColumn(COLUMN_TYPE.TEXT, my_f) for my_f in self._read_header() ]
+                ds_format = DataSetFormat()
+        else: 
+            cols = [ DataColumn(COLUMN_TYPE.TEXT, my_f) for my_f in mapping.columns ]
+            ds_format = mapping.format
+
+        text_dataset = DataSet(cols, format=ds_format)
+        
+        try:
+            with open(self.path, 'r', encoding="utf-8") as f:
+                # this is in line with approach to transforming datasets -> i.e. include only columns that are part of mapping
+                reader = csv.DictReader(f, delimiter="\t", fieldnames=text_dataset.column_names)
+
+                next(reader) # skip header row
+
+                for record in reader:
+                    text_dataset.add_record(record)
+        except:
+            raise SyncError(SYNC_ERROR_CODE.FILE_ERROR)
+        
+        if mapping is not None: return text_dataset.remap(mapping).op_returns["remapped_data"]
+        else: return text_dataset
+
+    async def read_records(self, limit : int = -1, next_iterator = None, mapping : DataMap = None):
+        return self._read_records(limit, next_iterator, mapping)
+
+    def read_records_sync(self, limit : int = -1, next_iterator = None, mapping : DataMap = None):
+        return self._read_records(limit, next_iterator, mapping)
 
 
 class NotionWriter(SourceWriter):
