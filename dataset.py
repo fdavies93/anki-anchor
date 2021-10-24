@@ -376,6 +376,23 @@ class DataSet:
             raise DataError(DATA_ERROR_CODE.DATA_CANNOT_CONVERT) # this catches invalid conversions without smashing the program
         return output
 
+    def make_write_safe(self) -> OperationStatus:
+        ''' returns copy of dataset with unsafe columns converted to native values (e.g. datetime to string) 
+        and a reference for which columns were thus converted '''
+
+        clone = copy.deepcopy(self)
+
+        unsafe_columns = []
+        for col in clone.columns:
+            if col.type == COLUMN_TYPE.DATE:
+                unsafe_columns.append(col.name)
+        for unsafe_col in unsafe_columns:
+            clone.change_column_type(unsafe_col, COLUMN_TYPE.TEXT)
+
+        status = OperationStatus("make_write_safe", OP_STATUS_CODE.OP_SUCCESS, { "converted_columns": unsafe_columns, "safe_data": clone })
+
+        return status
+
     def equivalent_to(self, other : 'DataSet', key_column : str = None):
         ''' Checks if dataset is equivalent to another dataset: i.e. its columns are the same and its records can be matched to exactly one other record in the other dataset. '''
         # TODO: Add function to determine the optimal index for a key, to optimise when key isn't provided

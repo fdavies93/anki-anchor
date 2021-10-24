@@ -7,8 +7,8 @@ import requests
 
 from dataset import *
 import json
+import csv
 from os.path import dirname, exists, join, realpath
-import asyncio
 
 class SYNC_ERROR_CODE(Enum):
     PARAMETER_NOT_FOUND = 0,
@@ -127,7 +127,9 @@ class JsonWriter(SourceWriter):
                 json.dump(json_obj, f, indent=4)
         except:
             raise SyncError(SYNC_ERROR_CODE.FILE_ERROR)
-        
+    
+    async def create_table_sync(self, dataset: DataSet, callback : Callable = None):
+        return await self.create_table(dataset, callback)
 
     # async def append_records(self, limit : int = -1, next_iterator = None, callback : Callable = None):
     #     # convert records to a writable format
@@ -176,6 +178,29 @@ class JsonReader(SourceReader):
 
 class TsvWriter(SourceWriter):
     ''' Write records to a TSV file. '''
+    def __init__(self, parameters : dict):
+        if "file_path" not in parameters:
+            raise SyncError(SYNC_ERROR_CODE.PARAMETER_NOT_FOUND, "No path parameter found when initialising TsvWriter.")
+        self.path = join(dirname(realpath(__file__)), parameters["file_path"])
+    
+    async def create_table(self, dataset: DataSet, callback : Callable = None):
+        ''' Write a TSV file from given dataset. This will overwrite any existing file at the given file path. '''
+        safe_ds = dataset.make_write_safe().op_returns["safe_data"]
+        record_list = [r.asdict() for r in safe_ds.records]
+
+        try:
+            with open(self.path, 'w', encoding="utf-8") as f:
+                writer = csv.DictWriter(f, dataset.column_names, delimiter="\t")
+                writer.writeheader()
+                for r in record_list:
+                    writer.writerow(r)
+        except:
+            raise SyncError(SYNC_ERROR_CODE.FILE_ERROR)
+
+        return callback
+    
+    async def create_table_sync(self, dataset: DataSet, callback = None):
+        return await self.create_table(dataset, callback)
 
 class TsvReader(SourceReader): 
     ''' Read records from a TSV file. '''

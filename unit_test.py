@@ -1,12 +1,13 @@
 from json.encoder import JSONEncoder
 from os import unlink, write
 from dataset import *
-from sync import JsonReader, JsonWriter
+from sync import JsonReader, JsonWriter, TsvWriter
 import unittest
 from os.path import dirname, exists, join, realpath
 import json
 from datetime import date, datetime
 import asyncio
+import copy
 
 def write_out(input: DataSet,relative_path):
     saved_path = join(dirname(realpath(__file__)), relative_path)
@@ -19,6 +20,82 @@ class RecordSerializer(JSONEncoder):
         if isinstance(o,DataRecord):
             return o.asdict()
         return json.JSONEncoder.default(self, o)
+
+class TestTsvSync(unittest.TestCase):
+    # def test_basic_read(self):
+    #     reader = JsonReader({"file_path": "./test_input/json_basic_test.json"})
+    #     ds : DataSet = asyncio.run( reader.read_records() )
+    #     ds.change_column_type("date_added", COLUMN_TYPE.TEXT)
+    #     write_out(ds.records,"./test_output/json_read_test.json")
+
+    def test_basic_write(self):
+
+        cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.DATE, "date"),
+            DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            DataColumn(COLUMN_TYPE.SELECT, "select"),
+            DataColumn(COLUMN_TYPE.TEXT, "bad_data")
+        ]
+        records = [
+            {
+                "id": "0",
+                "date": datetime(1994, 3, 23, 12, 1),
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+                "bad_data": "xyz",
+            },
+            {
+                "id": "1",
+                "date": datetime(1995, 3, 24, 12, 2),
+                "multiselect": ['1','2','3','4','5'],
+                "select": "1",
+                "bad_data": "000 000 000"
+            },
+            {
+                "id": "2",
+                "date": datetime(1996, 3, 25, 12, 3),
+                "multiselect": ['2','3','4','5','6'],
+                "select": "2",
+                "bad_data": None
+            },
+            {
+                "id": "3",
+                "date": datetime(1997, 3, 26, 12, 4),
+                "multiselect": ['3','4','5','6','7'],
+                "select": "3",
+                "bad_data": None
+            }
+        ]
+
+        ds = DataSet(cols, records)
+
+        writer = TsvWriter({"file_path": "./test_output/tsv_basic_write.tsv"})
+        asyncio.run( writer.create_table_sync(ds) )
+
+    def test_big_write(self):
+        cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.DATE, "date"),
+            DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            DataColumn(COLUMN_TYPE.SELECT, "select"),
+            DataColumn(COLUMN_TYPE.TEXT, "bad_data")
+        ]
+        record_template = {
+                "id": "0",
+                "date": datetime(1994, 3, 23, 12, 1),
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+                "bad_data": "xyz",
+        }
+        ds = DataSet(cols)
+        for id in range(10000):
+            cur_record = copy.deepcopy(record_template)
+            cur_record["id"] = str(id)
+            cur_record["select"] = str(id)
+            ds.add_record(cur_record)
+        writer = TsvWriter({"file_path": "./test_output/tsv_big_write.tsv"})
+        asyncio.run( writer.create_table_sync(ds) )
 
 class TestJsonSync(unittest.TestCase):
 
@@ -71,7 +148,32 @@ class TestJsonSync(unittest.TestCase):
         ds = DataSet(cols, records)
 
         writer = JsonWriter({"file_path": "./test_output/json_basic_write.json"})
-        asyncio.run( writer.create_table(ds) )
+        asyncio.run( writer.create_table_sync(ds) )
+
+    def test_big_write(self):
+        cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.DATE, "date"),
+            DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            DataColumn(COLUMN_TYPE.SELECT, "select"),
+            DataColumn(COLUMN_TYPE.TEXT, "bad_data")
+        ]
+        record_template = {
+                "id": "0",
+                "date": datetime(1994, 3, 23, 12, 1),
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+                "bad_data": "xyz",
+        }
+        ds = DataSet(cols)
+        for id in range(10000):
+            cur_record = copy.deepcopy(record_template)
+            cur_record["id"] = str(id)
+            cur_record["select"] = str(id)
+            ds.add_record(cur_record)
+
+        writer = JsonWriter({"file_path": "./test_output/json_big_write.json"})
+        asyncio.run( writer.create_table_sync(ds) )
 
 
 class TestRemap(unittest.TestCase):
