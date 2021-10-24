@@ -71,7 +71,7 @@ class TestTsvSync(unittest.TestCase):
         ds = DataSet(cols, records)
 
         writer = TsvWriter({"file_path": "./test_output/tsv_basic_write.tsv"})
-        asyncio.run( writer.create_table_sync(ds) )
+        asyncio.run( writer.create_table(ds) )
 
     def test_big_write(self):
         cols = [
@@ -95,7 +95,7 @@ class TestTsvSync(unittest.TestCase):
             cur_record["select"] = str(id)
             ds.add_record(cur_record)
         writer = TsvWriter({"file_path": "./test_output/tsv_big_write.tsv"})
-        asyncio.run( writer.create_table_sync(ds) )
+        asyncio.run( writer.create_table(ds) )
 
 class TestJsonSync(unittest.TestCase):
 
@@ -148,7 +148,7 @@ class TestJsonSync(unittest.TestCase):
         ds = DataSet(cols, records)
 
         writer = JsonWriter({"file_path": "./test_output/json_basic_write.json"})
-        asyncio.run( writer.create_table_sync(ds) )
+        asyncio.run( writer.create_table(ds) )
 
     def test_big_write(self):
         cols = [
@@ -173,7 +173,7 @@ class TestJsonSync(unittest.TestCase):
             ds.add_record(cur_record)
 
         writer = JsonWriter({"file_path": "./test_output/json_big_write.json"})
-        asyncio.run( writer.create_table_sync(ds) )
+        asyncio.run( writer.create_table(ds) )
 
 
 class TestRemap(unittest.TestCase):

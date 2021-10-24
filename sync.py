@@ -96,8 +96,8 @@ class JsonWriter(SourceWriter):
             raise SyncError(SYNC_ERROR_CODE.PARAMETER_NOT_FOUND, "No path parameter found when initialising JsonWriter.")
         self.path = join(dirname(realpath(__file__)), parameters["file_path"])
 
-    async def create_table(self, dataset: DataSet, callback : Callable = None):
-        ''' Create JSON file with dataset. '''
+    def _create_table(self, dataset: DataSet, callback : Callable = None):
+        ''' Sync function which is basis for async and sync methods. '''
         clone = copy.deepcopy(dataset)
 
         column_dict = {}
@@ -127,9 +127,14 @@ class JsonWriter(SourceWriter):
                 json.dump(json_obj, f, indent=4)
         except:
             raise SyncError(SYNC_ERROR_CODE.FILE_ERROR)
+
+        return callback
     
-    async def create_table_sync(self, dataset: DataSet, callback : Callable = None):
-        return await self.create_table(dataset, callback)
+    async def create_table(self, dataset: DataSet, callback : Callable = None):
+        return self._create_table(dataset, callback)
+
+    def create_table_sync(self, dataset: DataSet, callback : Callable = None):
+        return self._create_table(dataset, callback)
 
     # async def append_records(self, limit : int = -1, next_iterator = None, callback : Callable = None):
     #     # convert records to a writable format
@@ -183,8 +188,7 @@ class TsvWriter(SourceWriter):
             raise SyncError(SYNC_ERROR_CODE.PARAMETER_NOT_FOUND, "No path parameter found when initialising TsvWriter.")
         self.path = join(dirname(realpath(__file__)), parameters["file_path"])
     
-    async def create_table(self, dataset: DataSet, callback : Callable = None):
-        ''' Write a TSV file from given dataset. This will overwrite any existing file at the given file path. '''
+    def _create_table(self, dataset:DataSet, callback : Callable = None):
         safe_ds = dataset.make_write_safe().op_returns["safe_data"]
         record_list = [r.asdict() for r in safe_ds.records]
 
@@ -198,9 +202,13 @@ class TsvWriter(SourceWriter):
             raise SyncError(SYNC_ERROR_CODE.FILE_ERROR)
 
         return callback
+
+    async def create_table(self, dataset: DataSet, callback : Callable = None):
+        ''' Write a TSV file from given dataset. This will overwrite any existing file at the given file path. '''
+        return self._create_table(dataset, callback)
     
-    async def create_table_sync(self, dataset: DataSet, callback = None):
-        return await self.create_table(dataset, callback)
+    def create_table_sync(self, dataset: DataSet, callback : Callable = None):
+        return self._create_table(dataset, callback)
 
 class TsvReader(SourceReader): 
     ''' Read records from a TSV file. '''
