@@ -10,9 +10,21 @@ import json
 import csv
 from os.path import dirname, exists, join, realpath
 
-class SYNC_ERROR_CODE(Enum):
+class DATA_SOURCE(IntEnum):
+    JSON = 0,
+    TSV = 1,
+    ANKI = 2,
+    NOTION = 3
+
+class SYNC_ERROR_CODE(IntEnum):
     PARAMETER_NOT_FOUND = 0,
     FILE_ERROR = 1
+
+@dataclass
+class TableSpec:
+    source : DATA_SOURCE
+    parameters : dict # contains specific information for a given data source
+    name: str
 
 class SyncError(ValueError):
     def __init__(self, error_code: SYNC_ERROR_CODE, message="Sync error."):
@@ -38,7 +50,10 @@ class SourceReader(ABC):
         '''Get a given record.'''
 
     async def read_records(self, limit : int = -1, next_iterator = None):
-        '''Get multiple records.'''
+        ''' Get multiple records. '''
+    
+    def read_records_sync(self, limit: int = -1, next_iterator = None):
+        ''' Get records synchronously. '''
 
     async def get_columns(self):
         '''Get columns with their data type as a standardised type.'''
@@ -91,10 +106,10 @@ class JsonWriter(SourceWriter):
     #   header: [ "COLUMN_NAME": COLUMN_TYPE ]
     #   records: [ RECORD ...]
     # }
-    def __init__(self, parameters : dict):
-        if "file_path" not in parameters:
+    def __init__(self, table_spec : TableSpec):
+        if "file_path" not in table_spec.parameters:
             raise SyncError(SYNC_ERROR_CODE.PARAMETER_NOT_FOUND, "No path parameter found when initialising JsonWriter.")
-        self.path = join(dirname(realpath(__file__)), parameters["file_path"])
+        self.path = join(dirname(realpath(__file__)), table_spec.parameters["file_path"])
 
     def _create_table(self, dataset: DataSet, callback : Callable = None):
         ''' Sync function which is basis for async and sync methods. '''
@@ -147,12 +162,12 @@ class JsonWriter(SourceWriter):
 
 class JsonReader(SourceReader):
     ''' Read records from a JSON file. '''
-    def __init__(self, parameters : dict):
-        if "file_path" not in parameters:
+    def __init__(self, table_spec : TableSpec):
+        if "file_path" not in table_spec.parameters:
             raise SyncError(SYNC_ERROR_CODE.PARAMETER_NOT_FOUND, "No path parameter found when initialising JsonReader.")
-        self.path = join(dirname(realpath(__file__)), parameters["file_path"])
+        self.path = join(dirname(realpath(__file__)), table_spec.parameters["file_path"])
     
-    async def read_records(self, limit : int = -1, next_iterator = None):
+    async def read_records(self, limit : int = -1, next_iterator = None) -> DataSet:
         # open file
         try:
             with open(self.path, 'r', encoding="utf-8") as f:
@@ -183,12 +198,18 @@ class JsonReader(SourceReader):
 
 class TsvWriter(SourceWriter):
     ''' Write records to a TSV file. '''
-    def __init__(self, parameters : dict):
-        if "file_path" not in parameters:
-            raise SyncError(SYNC_ERROR_CODE.PARAMETER_NOT_FOUND, "No path parameter found when initialising TsvWriter.")
-        self.path = join(dirname(realpath(__file__)), parameters["file_path"])
+    def __init__(self, table_spec : TableSpec = None):
+        self.path = None
+        if "file_path" in table_spec.parameters:
+            self.path = join(dirname(realpath(__file__)), table_spec.parameters["file_path"])
     
+    def _check_path_set(self):
+        if self.path == None:
+            raise SyncError(SYNC_ERROR_CODE.PARAMETER_NOT_FOUND, "Path not set in TsvWriter.")
+
     def _create_table(self, dataset:DataSet, callback : Callable = None):
+        self._check_path_set()
+
         conversions = {
             COLUMN_TYPE.DATE: COLUMN_TYPE.TEXT,
             COLUMN_TYPE.MULTI_SELECT: COLUMN_TYPE.TEXT,
@@ -218,15 +239,18 @@ class TsvWriter(SourceWriter):
 
 class TsvReader(SourceReader): 
     ''' Read records from a TSV file. '''
-    def __init__(self, parameters : dict):
-        if "file_path" not in parameters:
+    def __init__(self, table_spec : dict):
+        if "file_path" not in table_spec.parameters:
             raise SyncError(SYNC_ERROR_CODE.PARAMETER_NOT_FOUND, "No path parameter found when initialising TsvWriter.")
-        self.path = join(dirname(realpath(__file__)), parameters["file_path"])
+        self.path = join(dirname(realpath(__file__)), table_spec.parameters["file_path"])
+
+    def get_columns(self):
+        return [ DataColumn(COLUMN_TYPE.TEXT, my_f) for my_f in self._read_header() ]
 
     def _read_header(self):
         try:
             with open(self.path, 'r', encoding="utf") as f:
-                reader = csv.DictWriter(f, delimiter="\t")
+                reader = csv.DictReader(f, delimiter="\t")
                 return reader.fieldnames
         except:
             raise SyncError(SYNC_ERROR_CODE.FILE_ERROR)

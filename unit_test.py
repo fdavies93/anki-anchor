@@ -127,6 +127,7 @@ class TestTsvSync(unittest.TestCase):
         json_writer = JsonWriter( {"file_path": "./test_output/tsv_as_json.json"} )
         asyncio.run(json_writer.create_table(ds))
 
+
 class TestJsonSync(unittest.TestCase):
 
     def test_basic_read(self):

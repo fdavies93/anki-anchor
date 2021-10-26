@@ -1,5 +1,5 @@
 from sync import *
-from anki.models import NoteType
+from anki.models import NoteType, NotetypeNameId
 from anki.notes import Note
 from aqt import mw
 from aqt.utils import showInfo, qconnect
@@ -11,23 +11,48 @@ class AnkiWriter(SourceWriter):
 
 class AnkiReader(SourceReader):
     '''Read records from Anki.'''
-    def get_databases(self):
-        '''Returns a list of note types and decks.'''
-        note_types = mw.col.models.all_names_and_ids()
-        decks = mw.col.decks.all_names_and_ids(include_filtered=False)
-        return {"note_types": note_types, "decks": decks}
+    def __init__(self, parameters : dict):
+        self.deck_name = None
+        self.note_type_name = None
+        if "table" in parameters:
+            self.table = parameters["table"]
+        # if "deck_name" in parameters:
+        #     self.deck_name = parameters["deck_name"]
 
-    def get_columns(self, note_type: NoteType):
-        nt = mw.col.models.get(note_type["id"])
+    def get_tables(self) -> list[TableSpec]:
+        note_types = mw.col.models.all_names_and_ids()
+        # decks = mw.col.decks.all_names_and_ids(include_filtered=False)
+        return [TableSpec(DATA_SOURCE.ANKI, {id: nt.id}, str(nt.name) ) for nt in note_types]
+
+    def get_columns(self):
+        nt : NoteType = mw.col.models.get(self.table.parameters["id"])
         field_names = mw.col.models.fieldNames(nt)
         return [ self._field_to_column(fn) for fn in field_names ]
 
-    def get_records(self, deck_name, note_type_name: str, columns) -> DataSet:
-        note_ids = mw.col.find_notes(f"deck:\"{deck_name}\" note:\"{note_type_name}\"")
-        # note type MUST be consistent for 
+    def _read_records(self, limit: int = -1, next_iterator = None):
+        if self.table == None:
+            raise SyncError(SYNC_ERROR_CODE.PARAMETER_NOT_FOUND, "No table set in AnkiReader; can't read records.")
+        note_type_name = self.table.name
+        note_ids = mw.col.find_notes(f"note:\"{note_type_name}\"")
+        columns = self.get_columns()
+        ds = DataSet(columns)
         records = [ self._note_to_record(mw.col.getNote(id)) for id in note_ids ]
-        # return RecordReadDataType(columns, records)
-        return records
+        ds.add_records(records)
+        return ds
+
+    async def read_records(self, limit : int = -1, next_iterator = None):
+        return self._read_records(limit, next_iterator)
+
+    def read_records_sync(self, limit: int = -1, next_iterator=None) -> DataSet:
+        return self._read_records(limit, next_iterator)
+
+    # def get_records(self, deck_name, note_type_name: str, columns) -> DataSet:
+    #     note_ids = mw.col.find_notes(f"deck:\"{deck_name}\" note:\"{note_type_name}\"")
+    #     columns = self.get_columns(note_type_name)
+    #     ds = DataSet(columns)
+    #     records = [ self._note_to_record(mw.col.getNote(id)) for id in note_ids ]
+    #     ds.add_records(records)
+    #     return ds
 
     def _field_to_column(self, fieldName: str):
         if fieldName == "tags": type = COLUMN_TYPE.MULTI_SELECT
