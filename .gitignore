@@ -7,3 +7,4 @@ test_output
 test_input
 htmlcov
 .coverage
+._htmlcov

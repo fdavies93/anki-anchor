@@ -1,7 +1,7 @@
 from enum import Enum, IntEnum
 from dataclasses import dataclass, field
 from os import error
-from typing import Type, Union
+from typing import Type, Union, List, Dict
 from datetime import datetime
 import copy
 
@@ -220,7 +220,7 @@ class DataSet:
         return [k for k in self._column_names]
 
     @property
-    def columns(self) -> list[DataColumn]:
+    def columns(self) -> List[DataColumn]:
         '''Returns list of current column definitions - i.e. not the underlying list _columns.'''
         return [self._columns[v] for v in self._column_names.values()]
 
@@ -376,7 +376,7 @@ class DataSet:
             raise DataError(DATA_ERROR_CODE.DATA_CANNOT_CONVERT) # this catches invalid conversions without smashing the program
         return output
 
-    def make_write_safe(self, types : dict[COLUMN_TYPE,COLUMN_TYPE]) -> OperationStatus:
+    def make_write_safe(self, types : Dict[COLUMN_TYPE,COLUMN_TYPE]) -> OperationStatus:
         ''' returns copy of dataset with unsafe columns converted to native values (e.g. datetime to string) 
         and a reference for which columns were thus converted '''
 

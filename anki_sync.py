@@ -15,7 +15,7 @@ class AnkiReader(SourceReader):
         self.deck_name = None
         self.note_type_name = None
         if "table" in parameters:
-            self.table = parameters["table"]
+            self.table = parameters["table"] # this is actually the card type
         # if "deck_name" in parameters:
         #     self.deck_name = parameters["deck_name"]
 

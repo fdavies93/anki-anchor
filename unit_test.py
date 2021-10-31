@@ -1,7 +1,7 @@
 from json.encoder import JSONEncoder
 from os import unlink, write
 from dataset import *
-from sync import JsonReader, JsonWriter, TsvReader, TsvWriter
+from sync import DATA_SOURCE, JsonReader, JsonWriter, TableSpec, TsvReader, TsvWriter
 import unittest
 from os.path import dirname, exists, join, realpath
 import json
@@ -70,7 +70,7 @@ class TestTsvSync(unittest.TestCase):
 
         ds = DataSet(cols, records)
 
-        writer = TsvWriter({"file_path": "./test_output/tsv_basic_write.tsv"})
+        writer = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/tsv_basic_write.tsv"}, "basic_write"))
         asyncio.run( writer.create_table(ds) )
 
     def test_big_write(self):
@@ -94,7 +94,7 @@ class TestTsvSync(unittest.TestCase):
             cur_record["id"] = str(id)
             cur_record["select"] = str(id)
             ds.add_record(cur_record)
-        writer = TsvWriter({"file_path": "./test_output/tsv_big_write.tsv"})
+        writer = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/tsv_big_write.tsv"}, "big_write"))
         asyncio.run( writer.create_table(ds) )
 
     def test_basic_read(self):
@@ -106,9 +106,9 @@ class TestTsvSync(unittest.TestCase):
             "bad_data": DataColumn(COLUMN_TYPE.TEXT, "bad_data")
         }
         dm = DataMap(map_cols, DataSetFormat())
-        reader = TsvReader({"file_path": "./test_input/tsv_basic_test.tsv"})
+        reader = TsvReader(TableSpec(DATA_SOURCE.TSV,{"file_path": "./test_input/tsv_basic_test.tsv"},"read_test"))
         ds = asyncio.run( reader.read_records(mapping=dm) )
-        writer = TsvWriter({"file_path": "./test_output/tsv_read_test.tsv"})
+        writer = TsvWriter(TableSpec(DATA_SOURCE.TSV,{"file_path": "./test_input/tsv_read_test.tsv"},"read_test"))
         asyncio.run( writer.create_table(ds) )
 
     def test_big_read(self):
@@ -120,18 +120,19 @@ class TestTsvSync(unittest.TestCase):
             "bad_data": DataColumn(COLUMN_TYPE.TEXT, "bad_data")
         }
         dm = DataMap(map_cols, DataSetFormat())
-        reader = TsvReader({"file_path": "./test_input/tsv_big_read.tsv"})
+        
+        reader = TsvReader(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_input/tsv_big_read.tsv"}, "tsv_big_read"))
         ds = asyncio.run( reader.read_records(mapping=dm) )
-        writer = TsvWriter({"file_path": "./test_output/tsv_big_read_test.tsv"})
+        writer = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/tsv_big_read_test.tsv"}, "tsv_big_read_test"))
         asyncio.run( writer.create_table(ds) )  
-        json_writer = JsonWriter( {"file_path": "./test_output/tsv_as_json.json"} )
+        json_writer = JsonWriter(TableSpec(DATA_SOURCE.JSON, {"file_path": "./test_output/tsv_big_read_test_json.json"}, "tsv_big_read_test") )
         asyncio.run(json_writer.create_table(ds))
 
 
 class TestJsonSync(unittest.TestCase):
 
     def test_basic_read(self):
-        reader = JsonReader({"file_path": "./test_input/json_basic_test.json"})
+        reader = JsonReader(TableSpec(DATA_SOURCE.JSON, {"file_path": "./test_input/json_basic_test.json"}, "test"))
         ds : DataSet = asyncio.run( reader.read_records() )
         ds.change_column_type("date_added", COLUMN_TYPE.TEXT)
         write_out(ds.records,"./test_output/json_read_test.json")
@@ -178,7 +179,7 @@ class TestJsonSync(unittest.TestCase):
 
         ds = DataSet(cols, records)
 
-        writer = JsonWriter({"file_path": "./test_output/json_basic_write.json"})
+        writer = JsonWriter(TableSpec(DATA_SOURCE.JSON, {"file_path": "./test_output/json_basic_write.json"}, "json_basic_write"))
         asyncio.run( writer.create_table(ds) )
 
     def test_big_write(self):
@@ -203,7 +204,7 @@ class TestJsonSync(unittest.TestCase):
             cur_record["select"] = str(id)
             ds.add_record(cur_record)
 
-        writer = JsonWriter({"file_path": "./test_output/json_big_write.json"})
+        writer = JsonWriter(TableSpec(DATA_SOURCE.JSON, {"file_path": "./test_output/json_big_write.json"}, "test"))
         asyncio.run( writer.create_table(ds) )
 
 
