@@ -612,7 +612,8 @@ def have_same_columns(left: DataSet, right: DataSet) -> bool:
             return False # column types are different
     return True
 
-def append(left: DataSet, right: DataSet, left_key: str, right_key: str, ignore_duplicates: bool = True):
+def append(left: DataSet, right: DataSet, left_key: str, right_key: str, ignore_duplicates: bool = False):
+
     index_left = build_key_index(left, left_key)
     index_right = build_key_index(right, right_key)
     new_set = DataSet(right.columns) # make a new, empty dataset with only the valid columns from 1

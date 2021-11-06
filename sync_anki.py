@@ -1,6 +1,7 @@
+from anki.decks import DeckManager
 from sync_types import *
-from anki.models import NoteType
-from anki.notes import Note
+from anki.models import *
+from anki.notes import *
 from aqt import mw
 from aqt.utils import showInfo, qconnect
 from aqt.qt import *
@@ -8,30 +9,40 @@ from re import sub
 
 class AnkiWriter(SourceWriter):
     '''Write records to Anki.'''
+    def __init__(self, table_spec : TableSpec):
+        pass
 
 class AnkiReader(SourceReader):
     '''Read records from Anki.'''
     def __init__(self, parameters : dict):
+        mw.loadCollection()
         self.deck_name = None
         self.note_type_name = None
+        self.table = None
         if "table" in parameters:
             self.table = parameters["table"] # this is actually the card type
         # if "deck_name" in parameters:
         #     self.deck_name = parameters["deck_name"]
+
+    def set_table(self, table: TableSpec):
+        if table.source != DATA_SOURCE.ANKI:
+            raise SyncError(SYNC_ERROR_CODE.INCORRECT_SOURCE)
+        else: 
+            self.table = table
 
     def get_tables(self) -> list[TableSpec]:
         if mw.col == None:
             return []
         note_types = mw.col.models.all_names_and_ids()
         # decks = mw.col.decks.all_names_and_ids(include_filtered=False)
-        return [TableSpec(DATA_SOURCE.ANKI, {id: nt.id}, str(nt.name) ) for nt in note_types]
+        return [TableSpec(DATA_SOURCE.ANKI, {"id": nt.id}, str(nt.name) ) for nt in note_types]
 
     def get_columns(self):
         nt : NoteType = mw.col.models.get(self.table.parameters["id"])
         field_names = mw.col.models.fieldNames(nt)
         return [ self._field_to_column(fn) for fn in field_names ]
 
-    def _read_records(self, limit: int = -1, next_iterator = None):
+    def _read_records(self, limit: int = -1, next_iterator : SyncHandle = None):
         if self.table == None:
             raise SyncError(SYNC_ERROR_CODE.PARAMETER_NOT_FOUND, "No table set in AnkiReader; can't read records.")
         note_type_name = self.table.name

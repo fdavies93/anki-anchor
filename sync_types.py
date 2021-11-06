@@ -13,7 +13,8 @@ class DATA_SOURCE(IntEnum):
 
 class SYNC_ERROR_CODE(IntEnum):
     PARAMETER_NOT_FOUND = 0,
-    FILE_ERROR = 1
+    FILE_ERROR = 1,
+    INCORRECT_SOURCE = 2
 
 @dataclass
 class TableSpec:
@@ -23,9 +24,13 @@ class TableSpec:
 
 @dataclass
 class SyncHandle:
-    ''' Maintains position in a read or write operation. '''
+    ''' Maintains position in a read or write operation. Returned from read and write operations. '''
+    records: DataSet
     source: DATA_SOURCE
     handle: object = None # always starts as a None object; later declared
+
+    def close(self):
+        ''' Closes the handle. To be implemented by derived objects.'''
 
 class SyncError(ValueError):
     def __init__(self, error_code: SYNC_ERROR_CODE, message="Sync error."):
@@ -44,10 +49,10 @@ class SourceReader(ABC):
     async def read_record(self):
         '''Get a given record.'''
 
-    async def read_records(self, limit : int = -1, next_iterator = None):
+    async def read_records(self, limit : int = -1, next_iterator : SyncHandle = None):
         ''' Get multiple records. '''
     
-    def read_records_sync(self, limit: int = -1, next_iterator = None):
+    def read_records_sync(self, limit: int = -1, next_iterator : SyncHandle = None):
         ''' Get records synchronously. '''
 
     async def get_columns(self):

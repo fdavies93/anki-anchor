@@ -3,6 +3,17 @@ from os.path import *
 from typing import Callable
 import csv
 
+@dataclass 
+class TsvSyncHandle(SyncHandle):
+
+    handle : csv.DictReader
+
+    def __init_subclass__(cls) -> None:
+        return super().__init_subclass__()
+    
+    def close(self):
+        self.handle.close()
+
 class TsvWriter(SourceWriter):
     ''' Write records to a TSV file. '''
     def __init__(self, table_spec : TableSpec = None):
@@ -62,10 +73,13 @@ class TsvReader(SourceReader):
         except:
             raise SyncError(SYNC_ERROR_CODE.FILE_ERROR)
 
-    def _read_records(self, limit : int = -1, next_iterator = None, mapping : DataMap = None) -> DataSet:
-        if mapping is None: # assume all columns are strings
-                cols = [ DataColumn(COLUMN_TYPE.TEXT, my_f) for my_f in self._read_header() ]
-                ds_format = DataSetFormat()
+    def _read_records(self, limit : int = -1, next_iterator : TsvSyncHandle = None, mapping : DataMap = None) -> TsvSyncHandle:
+        if next_iterator is not None:
+            cols = next_iterator.records.columns
+            ds_format = next_iterator.records.format
+        elif mapping is None: # assume all columns are strings
+            cols = [ DataColumn(COLUMN_TYPE.TEXT, my_f) for my_f in self._read_header() ]
+            ds_format = DataSetFormat()
         else: 
             cols = [ DataColumn(COLUMN_TYPE.TEXT, my_f) for my_f in mapping.columns ]
             ds_format = mapping.format
@@ -73,22 +87,33 @@ class TsvReader(SourceReader):
         text_dataset = DataSet(cols, format=ds_format)
         
         try:
-            with open(self.path, 'r', encoding="utf-8") as f:
-                # this is in line with approach to transforming datasets -> i.e. include only columns that are part of mapping
+            if next_iterator == None:
+                f = open(self.path, 'r', encoding="utf-8")
+                reader = csv.DictReader(f, delimiter="\t", fieldnames=text_dataset.column_names)
+                next(reader)
+                # point to first record
+            else:
+                f = next_iterator.handle
                 reader = csv.DictReader(f, delimiter="\t", fieldnames=text_dataset.column_names)
 
-                next(reader) # skip header row
-
-                for record in reader:
-                    text_dataset.add_record(record)
+            cur_it = 0
+            while cur_it < limit or limit == -1:
+                cur_record = next(reader, None)
+                if cur_record == None:
+                    f.close()
+                    f = None
+                    break
+                text_dataset.add_record(cur_record)
+                cur_it += 1
         except:
             raise SyncError(SYNC_ERROR_CODE.FILE_ERROR)
         
-        if mapping is not None: return text_dataset.remap(mapping).op_returns["remapped_data"]
-        else: return text_dataset
+        if mapping is not None: ds = text_dataset.remap(mapping).op_returns["remapped_data"]
+        else: ds = text_dataset
+        return TsvSyncHandle(ds, DATA_SOURCE.TSV, f)
 
-    async def read_records(self, limit : int = -1, next_iterator = None, mapping : DataMap = None):
+    async def read_records(self, limit : int = -1, next_iterator = None, mapping : DataMap = None) -> TsvSyncHandle:
         return self._read_records(limit, next_iterator, mapping)
 
-    def read_records_sync(self, limit : int = -1, next_iterator = None, mapping : DataMap = None):
+    def read_records_sync(self, limit : int = -1, next_iterator = None, mapping : DataMap = None) -> TsvSyncHandle:
         return self._read_records(limit, next_iterator, mapping)

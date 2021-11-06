@@ -1,5 +1,7 @@
 from json.encoder import JSONEncoder
 from os import unlink, write
+
+import anki
 from dataset import *
 from sync_types import *
 from sync_tsv import *
@@ -27,11 +29,20 @@ import locale
 #         return json.JSONEncoder.default(self, o)
 
 class AnkiTest(unittest.TestCase):
+
+    def add_test_collection(self, anki_app):
+        pass
+
     def test_anki_startup(self):
         with anki_running() as anki_app:
             import sync_anki
+            self.add_test_collection(anki_app)
             ar = sync_anki.AnkiReader({})
-            print (ar.get_tables() )
+
+            tables = ar.get_tables()
+            ar.set_table(tables[0])
+
+            print (ar.read_records_sync().records)
 
 class TestTsvSync(unittest.TestCase):
     # def test_basic_read(self):
@@ -119,8 +130,44 @@ class TestTsvSync(unittest.TestCase):
         }
         dm = DataMap(map_cols, DataSetFormat())
         reader = TsvReader(TableSpec(DATA_SOURCE.TSV,{"file_path": "./test_input/tsv_basic_test.tsv"},"read_test"))
-        ds = asyncio.run( reader.read_records(mapping=dm) )
+        handle = asyncio.run( reader.read_records(mapping=dm) )
+        ds = handle.records
         writer = TsvWriter(TableSpec(DATA_SOURCE.TSV,{"file_path": "./test_input/tsv_read_test.tsv"},"read_test"))
+        asyncio.run( writer.create_table(ds) )
+
+    def test_it_read_10(self):
+        map_cols = {
+            "id": DataColumn(COLUMN_TYPE.TEXT, "id"),
+            "date": DataColumn(COLUMN_TYPE.DATE, "date"),
+            "multiselect": DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            "select": DataColumn(COLUMN_TYPE.SELECT, "select"),
+            "bad_data": DataColumn(COLUMN_TYPE.TEXT, "bad_data")
+        }
+        dm = DataMap(map_cols, DataSetFormat())
+        reader = TsvReader(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_input/tsv_big_read.tsv"}, "tsv_big_read"))
+        handle = asyncio.run( reader.read_records(mapping=dm, limit=10) )
+        ds = handle.records
+        handle.close()
+        writer = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/tsv_it_read_10_test.tsv"}, "tsv_big_read_test"))
+        asyncio.run( writer.create_table(ds) )  
+
+    def test_it_read_chunks(self):
+        map_cols = {
+            "id": DataColumn(COLUMN_TYPE.TEXT, "id"),
+            "date": DataColumn(COLUMN_TYPE.DATE, "date"),
+            "multiselect": DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            "select": DataColumn(COLUMN_TYPE.SELECT, "select"),
+            "bad_data": DataColumn(COLUMN_TYPE.TEXT, "bad_data")
+        }
+        dm = DataMap(map_cols, DataSetFormat())
+        reader = TsvReader(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_input/tsv_big_read.tsv"}, "tsv_big_read"))
+        cur_handle = reader.read_records_sync(mapping=dm, limit=10)
+        ds : DataSet = cur_handle.records
+        while cur_handle.handle != None: 
+            cur_handle = reader.read_records_sync(mapping=dm, limit=10, next_iterator=cur_handle)
+            if cur_handle.handle != None:
+                ds = append(ds, cur_handle.records, "id", "id") # this is weird; fix append method
+        writer = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/tsv_it_read_all_test.tsv"}, "tsv_big_read_test"))
         asyncio.run( writer.create_table(ds) )
 
     def test_big_read(self):
@@ -134,11 +181,12 @@ class TestTsvSync(unittest.TestCase):
         dm = DataMap(map_cols, DataSetFormat())
         
         reader = TsvReader(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_input/tsv_big_read.tsv"}, "tsv_big_read"))
-        ds = asyncio.run( reader.read_records(mapping=dm) )
+        handle = asyncio.run( reader.read_records(mapping=dm) )
+        ds = handle.records
         writer = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/tsv_big_read_test.tsv"}, "tsv_big_read_test"))
         asyncio.run( writer.create_table(ds) )  
-        json_writer = JsonWriter(TableSpec(DATA_SOURCE.JSON, {"file_path": "./test_output/tsv_big_read_test_json.json"}, "tsv_big_read_test") )
-        asyncio.run(json_writer.create_table(ds))
+        # json_writer = JsonWriter(TableSpec(DATA_SOURCE.JSON, {"file_path": "./test_output/tsv_big_read_test_json.json"}, "tsv_big_read_test") )
+        # asyncio.run(json_writer.create_table(ds))
 
 
 class TestJsonSync(unittest.TestCase):
