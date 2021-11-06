@@ -1,5 +1,5 @@
-from sync import *
-from anki.models import NoteType, NotetypeNameId
+from sync_types import *
+from anki.models import NoteType
 from anki.notes import Note
 from aqt import mw
 from aqt.utils import showInfo, qconnect
@@ -20,6 +20,8 @@ class AnkiReader(SourceReader):
         #     self.deck_name = parameters["deck_name"]
 
     def get_tables(self) -> list[TableSpec]:
+        if mw.col == None:
+            return []
         note_types = mw.col.models.all_names_and_ids()
         # decks = mw.col.decks.all_names_and_ids(include_filtered=False)
         return [TableSpec(DATA_SOURCE.ANKI, {id: nt.id}, str(nt.name) ) for nt in note_types]

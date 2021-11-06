@@ -1,25 +1,37 @@
 from json.encoder import JSONEncoder
 from os import unlink, write
 from dataset import *
-from sync import DATA_SOURCE, JsonReader, JsonWriter, TableSpec, TsvReader, TsvWriter
+from sync_types import *
+from sync_tsv import *
+from sync_json import *
 import unittest
 from os.path import dirname, exists, join, realpath
 import json
 from datetime import date, datetime
 import asyncio
 import copy
+from anki_testing import anki_running
+import time
+import locale
 
-def write_out(input: DataSet,relative_path):
-    saved_path = join(dirname(realpath(__file__)), relative_path)
-    with open(saved_path, 'w', encoding='utf-8') as f:
-            rs = RecordSerializer(indent=4)
-            f.write(rs.encode(input))
+# def write_out(input: DataSet,relative_path):
+#     saved_path = join(dirname(realpath(__file__)), relative_path)
+#     with open(saved_path, 'w', encoding='utf-8') as f:
+#             rs = RecordSerializer(indent=4)
+#             f.write(rs.encode(input))
 
-class RecordSerializer(JSONEncoder):
-    def default(self,o):
-        if isinstance(o,DataRecord):
-            return o.asdict()
-        return json.JSONEncoder.default(self, o)
+# class RecordSerializer(JSONEncoder):
+#     def default(self,o):
+#         if isinstance(o,DataRecord):
+#             return o.asdict()
+#         return json.JSONEncoder.default(self, o)
+
+class AnkiTest(unittest.TestCase):
+    def test_anki_startup(self):
+        with anki_running() as anki_app:
+            import sync_anki
+            ar = sync_anki.AnkiReader({})
+            print (ar.get_tables() )
 
 class TestTsvSync(unittest.TestCase):
     # def test_basic_read(self):
@@ -135,7 +147,7 @@ class TestJsonSync(unittest.TestCase):
         reader = JsonReader(TableSpec(DATA_SOURCE.JSON, {"file_path": "./test_input/json_basic_test.json"}, "test"))
         ds : DataSet = asyncio.run( reader.read_records() )
         ds.change_column_type("date_added", COLUMN_TYPE.TEXT)
-        write_out(ds.records,"./test_output/json_read_test.json")
+        # write_out(ds.records,"./test_output/json_read_test.json")
 
     def test_basic_write(self):
 
@@ -691,6 +703,8 @@ class TestDataMerges(unittest.TestCase):
 
 class TestDataSet(unittest.TestCase):
     def setUp(self) -> None:
+        locale.setlocale(locale.LC_ALL,"en_US")
+        # avoids errors with date formatting
         self.cols = [
             DataColumn(COLUMN_TYPE.TEXT, "title"),
             DataColumn(COLUMN_TYPE.TEXT, "description"),
@@ -889,9 +903,9 @@ class TestDataSet(unittest.TestCase):
         append_ignore = append(ds, ds2, "title", "title", True)
 
         self.assertEqual(append_no_ignore.records, ds3.records)
-        write_out(append_no_ignore.records,"./test_output/append_no_ignore.json")
+        # write_out(append_no_ignore.records,"./test_output/append_no_ignore.json")
         self.assertEqual(append_ignore.records, ds.records)
-        write_out(append_ignore.records,"./test_output/append_ignore.json")
+        # write_out(append_ignore.records,"./test_output/append_ignore.json")
         # the success of these tests might be down to implementation of dict
         # however it's probably fine, and avoids need to write a sort method
 
@@ -987,11 +1001,11 @@ class TestDataSet(unittest.TestCase):
         test_col = DataColumn(COLUMN_TYPE.TEXT,"test_column")
         ds.add_column(test_col)
 
-        write_out(ds.records,"./test_output/add_column_ds1.json")
+        # write_out(ds.records,"./test_output/add_column_ds1.json")
 
         ds2 = DataSet(extra_cols, records=none_test)
 
-        write_out(ds2.records,"./test_output/add_column_ds2.json")
+        # write_out(ds2.records,"./test_output/add_column_ds2.json")
 
         self.assertEqual(ds.records[0], ds2.records[0])
         self.assertEqual(ds.records[1], ds2.records[1])

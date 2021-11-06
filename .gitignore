@@ -8,3 +8,4 @@ test_input
 htmlcov
 .coverage
 ._htmlcov
+anki_testing
