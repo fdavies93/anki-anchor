@@ -161,14 +161,17 @@ class TestTsvSync(unittest.TestCase):
         }
         dm = DataMap(map_cols, DataSetFormat())
         reader = TsvReader(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_input/tsv_big_read.tsv"}, "tsv_big_read"))
-        cur_handle = reader.read_records_sync(mapping=dm, limit=10)
-        ds : DataSet = cur_handle.records
-        while cur_handle.handle != None: 
-            cur_handle = reader.read_records_sync(mapping=dm, limit=10, next_iterator=cur_handle)
-            if cur_handle.handle != None:
-                ds = append(ds, cur_handle.records, "id", "id") # this is weird; fix append method
-        writer = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/tsv_it_read_all_test.tsv"}, "tsv_big_read_test"))
-        asyncio.run( writer.create_table(ds) )
+        
+        with reader.read_records_sync(mapping=dm, limit=10) as cur_handle:
+            # this approach ensures there are no file handles left hanging
+            print (cur_handle)
+            ds : DataSet = cur_handle.records
+            while cur_handle.handle != None: 
+                cur_handle = reader.read_records_sync(mapping=dm, limit=10, next_iterator=cur_handle)
+                if cur_handle.handle != None:
+                    ds.add_records(cur_handle.records.records)
+            writer = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/tsv_it_read_all_test.tsv"}, "tsv_big_read_test"))
+            asyncio.run( writer.create_table(ds) )
 
     def test_big_read(self):
         map_cols = {

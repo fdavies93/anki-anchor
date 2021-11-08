@@ -503,9 +503,7 @@ def select_all(input) -> list:
         return input
     else: return [input]
 
-def merge(left : DataSet, right : DataSet, left_key : str, right_key : str, overwrite = False, left_join = True, right_join = True, inner_join = True) -> DataSet:
-    ''' Defaults to the equivalent of a full outer join (left, right, and inner records are all retained.) '''
-
+def combine_columns(left : DataSet, right : DataSet, left_join: bool = True, right_join : bool = True, inner_join : bool = True):
     if not left_join and not right_join and not inner_join:
         return DataSet() # no records or columns
     # if not have_same_columns(left, right): raise DataError(DATA_ERROR_CODE.DATA_COLUMNS_INCOMPATIBLE)
@@ -534,12 +532,47 @@ def merge(left : DataSet, right : DataSet, left_key : str, right_key : str, over
     if right_join:
         for col_name in exclusive_right_col_set: new_columns.append(columns_right[col_name])
 
+    return DataSet(new_columns)
+
+def merge(left : DataSet, right : DataSet, left_key : str, right_key : str, overwrite = False, left_join = True, right_join = True, inner_join = True) -> DataSet:
+    ''' Defaults to the equivalent of a full outer join (left, right, and inner records are all retained.) '''
+
+    # if not left_join and not right_join and not inner_join:
+    #     return DataSet() # no records or columns
+    # # if not have_same_columns(left, right): raise DataError(DATA_ERROR_CODE.DATA_COLUMNS_INCOMPATIBLE)
+
+    # columns_left = { cn: left.get_column(cn) for cn in left.column_names }
+    # columns_right = { cn: right.get_column(cn) for cn in right.column_names }
+
+    # left_col_set = set( cn for cn in left.column_names )
+    # right_col_set = set( cn for cn in right.column_names )
+
+    # inner_cols_set = left_col_set.intersection(right_col_set)
+    # exclusive_left_col_set = left_col_set.difference(right_col_set)
+    # exclusive_right_col_set = right_col_set.difference(left_col_set)
+
+    # new_columns = []
+
+    # # always add columns in both sets
+    # for col_name in inner_cols_set:
+    #     if columns_left[col_name].type != columns_right[col_name].type:
+    #         raise ColumnError(COLUMN_ERROR_CODE.COLUMN_TYPE_INCOMPATIBLE, "Columns "+col_name+" have same name but differing types; cannot merge data.") 
+    #     else: new_columns.append(columns_left[col_name])
+
+    # if left_join:
+    #     for col_name in exclusive_left_col_set: new_columns.append(columns_left[col_name])
+
+    # if right_join:
+    #     for col_name in exclusive_right_col_set: new_columns.append(columns_right[col_name])
+
+    # new_set = DataSet(new_columns)
+
+    new_set = combine_columns(left, right, left_join, right_join, inner_join)
+
     index_left = build_key_index(left, left_key)
     index_right = build_key_index(right, right_key)
     left_keys = set(k for k in index_left.keys())
     right_keys = set(k for k in index_right.keys())
-
-    new_set = DataSet(new_columns)
 
     if inner_join:
         for k in left_keys.intersection(right_keys):
@@ -631,6 +664,12 @@ def append(left: DataSet, right: DataSet, left_key: str, right_key: str, ignore_
                     new_set.add_record(r)
             # add left data records where there's no matching key in right or if duplicates are allowed
     return new_set
+
+def new_append(left: DataSet, right: DataSet, left_join: bool = True, right_join: bool = True, inner_join : bool = True):
+    ds = combine_columns(left, right, left_join, right_join, inner_join)    
+    ds.add_records(left.records)
+    ds.add_records(right.records)
+    return ds
         
 def build_key_index(ds:DataSet, key_col):
     index = {}

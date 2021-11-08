@@ -5,14 +5,20 @@ import csv
 
 @dataclass 
 class TsvSyncHandle(SyncHandle):
+    ''' Be aware that handles may open unmanaged resources, such as sockets or file handles and therefore require at minimum an __exit__ function to be implemented. '''
 
     handle : csv.DictReader
 
     def __init_subclass__(cls) -> None:
         return super().__init_subclass__()
     
-    def close(self):
-        self.handle.close()
+    def __enter__(self):
+        # No setup required right now.
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.handle != None:
+            self.handle.close()
 
 class TsvWriter(SourceWriter):
     ''' Write records to a TSV file. '''
@@ -74,10 +80,7 @@ class TsvReader(SourceReader):
             raise SyncError(SYNC_ERROR_CODE.FILE_ERROR)
 
     def _read_records(self, limit : int = -1, next_iterator : TsvSyncHandle = None, mapping : DataMap = None) -> TsvSyncHandle:
-        if next_iterator is not None:
-            cols = next_iterator.records.columns
-            ds_format = next_iterator.records.format
-        elif mapping is None: # assume all columns are strings
+        if mapping is None: # assume all columns are strings
             cols = [ DataColumn(COLUMN_TYPE.TEXT, my_f) for my_f in self._read_header() ]
             ds_format = DataSetFormat()
         else: 
