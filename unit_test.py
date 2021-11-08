@@ -164,7 +164,6 @@ class TestTsvSync(unittest.TestCase):
         
         with reader.read_records_sync(mapping=dm, limit=10) as cur_handle:
             # this approach ensures there are no file handles left hanging
-            print (cur_handle)
             ds : DataSet = cur_handle.records
             while cur_handle.handle != None: 
                 cur_handle = reader.read_records_sync(mapping=dm, limit=10, next_iterator=cur_handle)
