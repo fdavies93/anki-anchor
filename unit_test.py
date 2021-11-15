@@ -3,6 +3,7 @@ from os import unlink, write
 
 import anki
 from dataset import *
+from sync_notion import NotionReader
 from sync_types import *
 from sync_tsv import *
 from sync_json import *
@@ -43,6 +44,32 @@ class AnkiTest(unittest.TestCase):
             ar.set_table(tables[0])
 
             print (ar.read_records_sync().records)
+
+class NotionTest(unittest.TestCase):
+    ''' Test Notion reader and writer. '''
+
+    def setUp(self) -> None:
+        path = join(dirname(realpath(__file__)), "config.json")
+        with open(path, "r") as f:
+            config = json.load(f)
+        self.secret = config["test_notion_api"]
+
+    def test_get_tables(self):
+        reader = NotionReader(self.secret)
+        print(reader.get_tables())
+
+    def test_get_records_basic(self):
+        reader = NotionReader(self.secret)
+        tables = reader.get_tables()
+        reader.set_table(tables[0])
+        it = reader.read_records_sync(100)
+        ds = it.records
+        while it.handle != None:
+            it = reader.read_records_sync(100, it)
+            ds.add_records(it.records.records)
+        
+        tsv = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/notion_write_all.tsv"}, "notion_write_all"))
+        tsv.create_table_sync(ds)
 
 class TestTsvSync(unittest.TestCase):
     # def test_basic_read(self):
