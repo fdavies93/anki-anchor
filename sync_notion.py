@@ -18,6 +18,11 @@ class NotionSyncHandle(SyncHandle):
 
 class NotionWriter(SourceWriter):
     '''Write records to Notion.'''
+    def __init__(self, api_key : str = None) -> None:
+        self.api_key = None
+        self.table = None
+        if api_key != None:
+            self.api_key = api_key
 
 class NotionReader(SourceReader):
     '''Read records from Notion.'''
@@ -60,7 +65,7 @@ class NotionReader(SourceReader):
     def read_records_sync(self, limit: int = -1, next_iterator: NotionSyncHandle = None, mapping: DataMap = None) -> NotionSyncHandle:
         return self._read_records(limit = limit, next_iterator = next_iterator, mapping = mapping)
 
-    def get_tables(self) -> list[TableSpec]:
+    def get_tables(self) -> "list[TableSpec]":
         if self.api_key == None:
             raise SyncError(SYNC_ERROR_CODE.PARAMETER_NOT_FOUND, "API key not set in NotionReader.")
         return self.get_databases(self.api_key)

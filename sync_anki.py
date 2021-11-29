@@ -1,3 +1,4 @@
+from anki import collection
 from anki.decks import DeckManager
 from sync_types import *
 from anki.models import *
@@ -9,13 +10,60 @@ from re import sub
 
 class AnkiWriter(SourceWriter):
     '''Write records to Anki.'''
-    def __init__(self, table_spec : TableSpec):
-        pass
+    def __init__(self, parameters : dict):
+        if mw.col == None:
+            mw.loadCollection()
+
+    def set_table(self, table: TableSpec):
+        if table.source != DATA_SOURCE.ANKI:
+            raise SyncError(SYNC_ERROR_CODE.INCORRECT_SOURCE)
+        else:
+            self.table = table
+
+
+    def _make_template(self, fields = list):
+        # actually makes a side of a card, in language users understand
+        temp = mw.col.models.new_template("front")
+        temp["qfmt"] = "".join(["{{",fields[0],"}}"])
+        return temp
+
+    def create_table(self, dataset: DataSet, name: str, callback = None):
+        new_model = mw.col.models.new(name)
+        fields = []
+        for col in dataset.columns:
+            fields.append( mw.col.models.new_field(col.name) )
+        new_model["flds"] = fields
+        # this is properly part of the UI layer, so here contains only a placeholder
+        new_model["tmpls"] = [self._make_template(dataset.column_names)]
+        changes = mw.col.models.add_dict(new_model)
+        new_id = mw.col.models.id_for_name(name)
+        return TableSpec(DATA_SOURCE.ANKI, {"id": int(new_id)}, name)
+
+    def _write_records(self, dataset : DataSet, limit: int = -1, next_iterator : SyncHandle = None):
+        # just writes to the default deck for now, filtering on note_type (as that's the actual schema)
+        note_type = mw.col.models.get(self.table.parameters["id"])
+        target_deck = int(mw.col.decks.all_names_and_ids()[0].id)
+
+        type_clean = {
+            COLUMN_TYPE.SELECT: COLUMN_TYPE.TEXT,
+            COLUMN_TYPE.DATE: COLUMN_TYPE.TEXT,
+            COLUMN_TYPE.MULTI_SELECT: COLUMN_TYPE.TEXT
+        }
+
+        safe_data : DataSet = dataset.make_write_safe(type_clean).op_returns["safe_data"]
+
+        for record in safe_data.records:
+            new_note = mw.col.new_note(note_type)
+            record_dict = record.asdict()
+            for field in record_dict:
+                new_note[field] = str(record_dict[field]) # prevents Nones from causing issues
+            mw.col.add_note(new_note, target_deck)
 
 class AnkiReader(SourceReader):
     '''Read records from Anki.'''
     def __init__(self, parameters : dict):
-        mw.loadCollection()
+        if mw.col == None:
+            mw.loadCollection()
         self.deck_name = None
         self.note_type_name = None
         self.table = None
@@ -27,8 +75,11 @@ class AnkiReader(SourceReader):
     def set_table(self, table: TableSpec):
         if table.source != DATA_SOURCE.ANKI:
             raise SyncError(SYNC_ERROR_CODE.INCORRECT_SOURCE)
-        else: 
+        else:
             self.table = table
+
+    def get_decks(self) -> list:
+        return mw.col.decks.all_names_and_ids()
 
     def get_tables(self) -> list[TableSpec]:
         if mw.col == None:

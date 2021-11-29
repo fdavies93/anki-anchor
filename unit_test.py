@@ -31,19 +31,72 @@ import locale
 
 class AnkiTest(unittest.TestCase):
 
-    def add_test_collection(self, anki_app):
-        pass
+    def setUp(self) -> None:
+        cols = [
+            DataColumn(COLUMN_TYPE.TEXT, "id"),
+            DataColumn(COLUMN_TYPE.DATE, "date"),
+            DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            DataColumn(COLUMN_TYPE.SELECT, "select"),
+            DataColumn(COLUMN_TYPE.TEXT, "bad_data")
+        ]
+        records = [
+            {
+                "id": "0",
+                "date": datetime(1994, 3, 23, 12, 1),
+                "multiselect": ['0','1','2','3','4'],
+                "select": "0",
+                "bad_data": "xyz",
+            },
+            {
+                "id": "1",
+                "date": datetime(1995, 3, 24, 12, 2),
+                "multiselect": ['1','2','3','4','5'],
+                "select": "1",
+                "bad_data": "000 000 000"
+            },
+            {
+                "id": "2",
+                "date": datetime(1996, 3, 25, 12, 3),
+                "multiselect": ['2','3','4','5','6'],
+                "select": "2",
+                "bad_data": None
+            },
+            {
+                "id": "3",
+                "date": datetime(1997, 3, 26, 12, 4),
+                "multiselect": ['3','4','5','6','7'],
+                "select": "3",
+                "bad_data": None
+            }
+        ]
+
+        self.ds = DataSet(cols, records)
+
+
+    def add_test_collection(self):
+        aw = self.module.AnkiWriter({})
+        aw.create_table(self.ds, "New Card Type")
+        ar = self.module.AnkiReader({})
+        print(ar.get_tables())
+        # aw.add_collection()
 
     def test_anki_startup(self):
         with anki_running() as anki_app:
-            import sync_anki
-            self.add_test_collection(anki_app)
-            ar = sync_anki.AnkiReader({})
+            import sync_anki as sa
+            self.module = sa
+            self.app = anki_app
 
-            tables = ar.get_tables()
-            ar.set_table(tables[0])
+            with self.subTest(): # test creating a collection and adding records
+                aw = self.module.AnkiWriter({})
+                ar = self.module.AnkiReader({})
+                table = aw.create_table(self.ds, "Test Dataset")
+                aw.set_table(table)
+                aw._write_records(self.ds)
+                ar.set_table(table)
+                records = ar.read_records_sync()
+                tsv = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/anki_write_all.tsv"}, "anki_write_all"))
+                tsv.create_table_sync(records)
 
-            print (ar.read_records_sync().records)
 
 class NotionTest(unittest.TestCase):
     ''' Test Notion reader and writer. '''
@@ -56,7 +109,7 @@ class NotionTest(unittest.TestCase):
 
     def test_get_tables(self):
         reader = NotionReader(self.secret)
-        print(reader.get_tables())
+        reader.get_tables()
 
     def test_get_records_basic(self):
         reader = NotionReader(self.secret)
@@ -68,7 +121,25 @@ class NotionTest(unittest.TestCase):
             it = reader.read_records_sync(100, it)
             ds.add_records(it.records.records)
         
-        tsv = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/notion_write_all.tsv"}, "notion_write_all"))
+        tsv = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/notion_read_all.tsv"}, "notion_write_all"))
+        tsv.create_table_sync(ds)
+
+    async def awaitable_read(self, reader):
+        it = await reader.read_records(50)
+        i = 1
+        ds = it.records
+        while it.handle != None:
+            it = await reader.read_records(50, it)
+            i += 1
+            ds.add_records(it.records.records)
+        return ds
+
+    def test_get_records_async(self):
+        reader = NotionReader(self.secret)
+        tables = reader.get_tables()
+        reader.set_table(tables[0])
+        ds = asyncio.run(self.awaitable_read(reader))
+        tsv = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/notion_read_all_async.tsv"}, "notion_read_all_async"))
         tsv.create_table_sync(ds)
 
 class TestTsvSync(unittest.TestCase):
