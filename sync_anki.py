@@ -1,3 +1,5 @@
+from collections import deque
+from typing import Deque
 from anki import collection
 from anki.decks import DeckManager
 from sync_types import *
@@ -8,11 +10,27 @@ from aqt.utils import showInfo, qconnect
 from aqt.qt import *
 from re import sub
 
+@dataclass
+class AnkiSyncHandle(SyncHandle):
+
+    def __init_subclass__(cls) -> None:
+        return super().__init_subclass__()
+
+    def __enter__(self):
+        self.it = 0
+        self.id_list = []
+        # No setup required right now.
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
 class AnkiWriter(SourceWriter):
     '''Write records to Anki.'''
     def __init__(self, parameters : dict):
         if mw.col == None:
             mw.loadCollection()
+        self.table = None
 
     def set_table(self, table: TableSpec):
         if table.source != DATA_SOURCE.ANKI:
@@ -39,25 +57,47 @@ class AnkiWriter(SourceWriter):
         new_id = mw.col.models.id_for_name(name)
         return TableSpec(DATA_SOURCE.ANKI, {"id": int(new_id)}, name)
 
-    def _write_records(self, dataset : DataSet, limit: int = -1, next_iterator : SyncHandle = None):
+    def _write_records(self, dataset : DataSet, limit: int = -1, next_iterator : AnkiSyncHandle = None):
         # just writes to the default deck for now, filtering on note_type (as that's the actual schema)
-        note_type = mw.col.models.get(self.table.parameters["id"])
-        target_deck = int(mw.col.decks.all_names_and_ids()[0].id)
-
         type_clean = {
             COLUMN_TYPE.SELECT: COLUMN_TYPE.TEXT,
             COLUMN_TYPE.DATE: COLUMN_TYPE.TEXT,
             COLUMN_TYPE.MULTI_SELECT: COLUMN_TYPE.TEXT
         }
+        
+        if next_iterator != None:
+            remaining_records = copy.copy(next_iterator.handle)
+        else:
+            remaining_records = deque()
+            safe_data : DataSet = dataset.make_write_safe(type_clean).op_returns["safe_data"]
+            for record in safe_data.records:
+                remaining_records.append(record.asdict())
 
-        safe_data : DataSet = dataset.make_write_safe(type_clean).op_returns["safe_data"]
+        note_type = mw.col.models.get(self.table.parameters["id"])
+        target_deck = int(mw.col.decks.all_names_and_ids()[0].id)
 
-        for record in safe_data.records:
+        cur_it = 0
+
+        while len(remaining_records) > 0 and cur_it != limit:
+            cur_it += 1
+            record = remaining_records.popleft()
             new_note = mw.col.new_note(note_type)
-            record_dict = record.asdict()
-            for field in record_dict:
-                new_note[field] = str(record_dict[field]) # prevents Nones from causing issues
+            for field in record:
+                new_note[field] = str(record[field]) # prevents Nones from causing issues
             mw.col.add_note(new_note, target_deck)
+        
+        if len(remaining_records) == 0:
+            remaining_records = None
+            
+        out_it = AnkiSyncHandle(source = DATA_SOURCE.ANKI, records = dataset, handle = remaining_records)
+
+        return out_it
+
+    async def write_records(self, dataset : DataSet, limit : int = -1, next_iterator : AnkiSyncHandle = None):
+        return self._write_records(dataset, limit, next_iterator)
+
+    def write_records_sync(self, dataset : DataSet, limit : int = -1, next_iterator : AnkiSyncHandle = None):
+        return self._write_records(dataset, limit, next_iterator)
 
 class AnkiReader(SourceReader):
     '''Read records from Anki.'''

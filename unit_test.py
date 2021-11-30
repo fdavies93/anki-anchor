@@ -89,7 +89,7 @@ class AnkiTest(unittest.TestCase):
             with self.subTest(): # test creating a collection and adding records
                 aw = self.module.AnkiWriter({})
                 ar = self.module.AnkiReader({})
-                table = aw.create_table(self.ds, "Test Dataset")
+                table = aw.create_table(self.ds, "Total Write Test")
                 aw.set_table(table)
                 aw._write_records(self.ds)
                 ar.set_table(table)
@@ -97,6 +97,19 @@ class AnkiTest(unittest.TestCase):
                 tsv = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/anki_write_all.tsv"}, "anki_write_all"))
                 tsv.create_table_sync(records)
 
+            with self.subTest():
+                aw = self.module.AnkiWriter({})
+                ar = self.module.AnkiReader({})
+                table = aw.create_table(self.ds, "Iterative Write Test")
+                aw.set_table(table)
+                
+                it = aw._write_records(self.ds, 1)
+                while it.handle != None:
+                    it = aw._write_records(self.ds, 1, it)
+                ar.set_table(table)
+                records = ar.read_records_sync()
+                tsv = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/anki_write_it.tsv"}, "anki_write_it"))
+                tsv.create_table_sync(records)
 
 class NotionTest(unittest.TestCase):
     ''' Test Notion reader and writer. '''

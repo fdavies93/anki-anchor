@@ -1,36 +1,9 @@
 from enum import Enum, IntEnum
 from dataclasses import dataclass, field
 from os import error
-from typing import Type, Union, List, Dict
+from typing import Collection, Type, Union, List, Dict
 from datetime import datetime
 import copy
-
-# TODO: 
-# * IMPORTANT:
-# * improve merge algorithm & test - to make sure right dataset records are also included (through lower priority)
-# * finish writing merge tests
-#   * write record_checker function to check if all records in a dataset match (principally for automated testing)
-# * Write method to copy DataRecord, removing unused fields (also preventing pointers from being created)
-# * Improve tests for merge_column, append_column to make them not rely on manual inspection
-# * Write methods to write / read from CSV & JSON formats (probably sync layer responsibility)
-# * Outstanding tests:
-#   * remap
-#       * checking the output of remap
-#   * DataRecord.__eq__
-#       * type guard
-#       * column mismatch
-#       * data mismatch
-#       * success
-#   * DataSet.drop_column
-#       * column name guard
-#       * success
-#   * DateSet.merge
-#       * guard to ensure datasets have same spec
-#       * 
-#   * others...
-# Write method to replace Nones with some other value (probably a default) for the sake of interfacing.
-
-# Note: method to generate mapping from another data set is on the GUI model layer (it needs user input to map both sources), not dataset layer.
 
 class MERGE_TYPE(IntEnum):
     APPEND = 0
