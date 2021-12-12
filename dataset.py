@@ -1,7 +1,7 @@
 from enum import Enum, IntEnum
 from dataclasses import dataclass, field
 from os import error
-from typing import Collection, Type, Union, List, Dict
+from typing import Collection, Type, Union, List, Dict, Set
 from datetime import datetime
 import copy
 
@@ -366,6 +366,23 @@ class DataSet:
         status = OperationStatus("make_write_safe", OP_STATUS_CODE.OP_SUCCESS, { "converted_columns": unsafe_columns, "safe_data": clone })
 
         return status
+
+    def get_uniques(self) -> Dict[str, Set[str]]:
+        ''' Current implementation is extremely inefficient as it calculates the values on-the-fly. 
+            This is a major motivation for adding caching features to the DataSet class. '''
+        return self.calculate_uniques()
+
+    def calculate_uniques(self) -> Dict[str, Set[str]]:
+        ''' This is not an efficient method, but there is no more efficient way to do this. Caching will help. '''
+        select_columns : dict[str, Set[str]] = {}
+        for column in self.columns:
+            select_columns[column.name] = set()
+        for record in self.records:
+            for col in select_columns: # i.e. keys
+                vals = select_all(record[col])
+                for val in vals:
+                    select_columns[col].add(val)
+        return select_columns        
 
     def equivalent_to(self, other : 'DataSet', key_column : str = None):
         ''' Checks if dataset is equivalent to another dataset: i.e. its columns are the same and its records can be matched to exactly one other record in the other dataset. '''

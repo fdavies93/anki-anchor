@@ -63,7 +63,7 @@ class TsvWriter(SourceWriter):
 
 class TsvReader(SourceReader): 
     ''' Read records from a TSV file. '''
-    def __init__(self, table_spec : dict):
+    def __init__(self, table_spec : TableSpec):
         if "file_path" not in table_spec.parameters:
             raise SyncError(SYNC_ERROR_CODE.PARAMETER_NOT_FOUND, "No path parameter found when initialising TsvWriter.")
         self.path = join(dirname(realpath(__file__)), table_spec.parameters["file_path"])

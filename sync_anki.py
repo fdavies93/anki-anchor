@@ -45,7 +45,7 @@ class AnkiWriter(SourceWriter):
         temp["qfmt"] = "".join(["{{",fields[0],"}}"])
         return temp
 
-    def create_table(self, dataset: DataSet, name: str, callback = None):
+    def create_table(self, dataset: DataSet, name: str, callback = None) -> TableSpec:
         new_model = mw.col.models.new(name)
         fields = []
         for col in dataset.columns:

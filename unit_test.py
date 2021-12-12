@@ -3,7 +3,7 @@ from os import unlink, write
 
 import anki
 from dataset import *
-from sync_notion import NotionReader
+from sync_notion import NotionReader, NotionWriter
 from sync_types import *
 from sync_tsv import *
 from sync_json import *
@@ -154,6 +154,26 @@ class NotionTest(unittest.TestCase):
         ds = asyncio.run(self.awaitable_read(reader))
         tsv = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/notion_read_all_async.tsv"}, "notion_read_all_async"))
         tsv.create_table_sync(ds)
+
+    def test_create_table(self):
+        tsv = TsvReader(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_input/tsv_read_test.tsv"}, "tsv_read_test"))
+        map_cols = {
+            "id": DataColumn(COLUMN_TYPE.TEXT, "id"),
+            "date": DataColumn(COLUMN_TYPE.DATE, "date"),
+            "multiselect": DataColumn(COLUMN_TYPE.MULTI_SELECT, "multiselect"),
+            "select": DataColumn(COLUMN_TYPE.SELECT, "select"),
+            "bad_data": DataColumn(COLUMN_TYPE.TEXT, "bad_data")
+        }
+        dm = DataMap(map_cols, DataSetFormat())
+        ds = tsv.read_records_sync(mapping=dm).records
+        nw = NotionWriter(self.secret)
+        nr = NotionReader(self.secret)
+        parent_specs = nr.get_table_parents()
+        print("Creating table as child of " + parent_specs[0].name)
+        parent = parent_specs[0].parameters["parent_id"]
+        table = nw.create_table(ds,TableSpec(DATA_SOURCE.NOTION, {"parent_id": parent}, "API Test Database"))
+        nw.set_table(table)
+        nw._write_records(ds)
 
 class TestTsvSync(unittest.TestCase):
     # def test_basic_read(self):
