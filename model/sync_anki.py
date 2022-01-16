@@ -2,7 +2,7 @@ from collections import deque
 from typing import Deque
 from anki import collection
 from anki.decks import DeckManager
-from sync_types import *
+from core.sync.sync_types import *
 from anki.models import *
 from anki.notes import *
 from aqt import mw

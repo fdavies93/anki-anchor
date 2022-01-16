@@ -1,5 +1,5 @@
 from .config import ConfigManager
-from .sync import *
+from core.sync import *
 
 class ModelManager():
     def __init__(self):

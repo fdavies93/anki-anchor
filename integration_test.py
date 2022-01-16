@@ -2,7 +2,7 @@
 from json import dump, dumps, load
 import json
 import requests
-from sync import *
+from core.sync.sync_notion import *
 
 class BearerAuth(requests.auth.AuthBase):
     def __init__(self, token):

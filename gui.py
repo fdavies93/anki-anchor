@@ -5,10 +5,10 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from anki.lang import _
 from aqt import mw, utils
 from aqt.qt import *
-from .model import model
-from .download import Ui_download
-from .upload import Ui_upload
-from .settings import Ui_settings
+from .model.model import model
+from gui.download import Ui_download
+from gui.upload import Ui_upload
+from gui.settings import Ui_settings
 from os.path import dirname, exists, join, realpath
 from json import dump, load
 

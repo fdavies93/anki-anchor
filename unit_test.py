@@ -2,11 +2,11 @@ from json.encoder import JSONEncoder
 from os import unlink, write
 
 import anki
-from dataset import *
-from sync_notion import NotionReader, NotionWriter
-from sync_types import *
-from sync_tsv import *
-from sync_json import *
+from core.dataset import *
+from core.sync.sync_notion import NotionReader, NotionWriter
+from core.sync.sync_types import *
+from core.sync.sync_tsv import *
+from core.sync.sync_json import *
 import unittest
 from os.path import dirname, exists, join, realpath
 import json
@@ -17,20 +17,7 @@ from anki_testing import anki_running
 import time
 import locale
 
-# def write_out(input: DataSet,relative_path):
-#     saved_path = join(dirname(realpath(__file__)), relative_path)
-#     with open(saved_path, 'w', encoding='utf-8') as f:
-#             rs = RecordSerializer(indent=4)
-#             f.write(rs.encode(input))
-
-# class RecordSerializer(JSONEncoder):
-#     def default(self,o):
-#         if isinstance(o,DataRecord):
-#             return o.asdict()
-#         return json.JSONEncoder.default(self, o)
-
 class AnkiTest(unittest.TestCase):
-
     def setUp(self) -> None:
         cols = [
             DataColumn(COLUMN_TYPE.TEXT, "id"),
@@ -82,7 +69,7 @@ class AnkiTest(unittest.TestCase):
 
     def test_anki_startup(self):
         with anki_running() as anki_app:
-            import sync_anki as sa
+            import model.sync_anki as sa
             self.module = sa
             self.app = anki_app
 

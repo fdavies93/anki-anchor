@@ -8,7 +8,7 @@ from anki.hooks import addHook, wrap
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 from .gui import gui
-from .model import model
+from model import model
 
 addHook('profileLoaded', gui.load_menu)
 addHook('profileLoaded', model.load_config)
