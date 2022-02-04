@@ -89,7 +89,11 @@ class AnkiWriter(SourceWriter):
         if len(remaining_records) == 0:
             remaining_records = None
             
-        out_it = AnkiSyncHandle(source = DATA_SOURCE.ANKI, records = dataset, handle = remaining_records)
+        done = False
+        if remaining_records == None:
+            done = True
+
+        out_it = AnkiSyncHandle(source = DATA_SOURCE.ANKI, records = dataset, handle = remaining_records, done = False)
 
         return out_it
 
