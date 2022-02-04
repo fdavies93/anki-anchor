@@ -2,6 +2,7 @@ from collections import deque
 from typing import Deque
 from anki import collection
 from anki.decks import DeckManager
+from core.sync.sync_notion import NotionSyncHandle
 from core.sync.sync_types import *
 from anki.models import *
 from anki.notes import *
@@ -38,6 +39,16 @@ class AnkiWriter(SourceWriter):
         else:
             self.table = table
 
+    # def update_table(self, left : DataSet, primary_key : str, loop_callback : Callable[[SyncStatus], None]):
+    #     ar = AnkiReader({"table": self.table})
+    #     handle = ar.read_records_sync(100, include_ids=True)
+    #     right = handle.records
+    #     loop_callback(SyncStatus(-1, len(right.records), SYNC_STATUS_CODE.READING_SOURCE))
+
+    #     while not handle.done:
+    #         handle = ar.read_records_sync(100, next_iterator=handle, include_ids=True)
+    #         right.add_records(handle.records)
+    #         loop_callback(SyncStatus(-1, len(right.records), SYNC_STATUS_CODE.READING_SOURCE))
 
     def _make_template(self, fields = list):
         # actually makes a side of a card, in language users understand
@@ -93,7 +104,7 @@ class AnkiWriter(SourceWriter):
         if remaining_records == None:
             done = True
 
-        out_it = AnkiSyncHandle(source = DATA_SOURCE.ANKI, records = dataset, handle = remaining_records, done = False)
+        out_it = AnkiSyncHandle(source = DATA_SOURCE.ANKI, records = dataset, handle = remaining_records, done = done)
 
         return out_it
 
@@ -137,7 +148,7 @@ class AnkiReader(SourceReader):
         field_names = mw.col.models.fieldNames(nt)
         return [ self._field_to_column(fn) for fn in field_names ]
 
-    def _read_records(self, limit: int = -1, next_iterator : SyncHandle = None):
+    def _read_records(self, limit: int = -1, next_iterator : AnkiSyncHandle = None):
         if self.table == None:
             raise SyncError(SYNC_ERROR_CODE.PARAMETER_NOT_FOUND, "No table set in AnkiReader; can't read records.")
         note_type_name = self.table.name
@@ -146,12 +157,12 @@ class AnkiReader(SourceReader):
         ds = DataSet(columns)
         records = [ self._note_to_record(mw.col.getNote(id)) for id in note_ids ]
         ds.add_records(records)
-        return ds
+        return AnkiSyncHandle(ds, DATA_SOURCE.ANKI, None, True)
 
     async def read_records(self, limit : int = -1, next_iterator = None):
         return self._read_records(limit, next_iterator)
 
-    def read_records_sync(self, limit: int = -1, next_iterator=None) -> DataSet:
+    def read_records_sync(self, limit: int = -1, next_iterator=None) -> AnkiSyncHandle:
         return self._read_records(limit, next_iterator)
 
     # def get_records(self, deck_name, note_type_name: str, columns) -> DataSet:

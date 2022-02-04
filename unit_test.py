@@ -19,6 +19,7 @@ import locale
 
 class AnkiTest(unittest.TestCase):
     def setUp(self) -> None:
+        self.abs_path = os.getcwd()
         cols = [
             DataColumn(COLUMN_TYPE.TEXT, "id"),
             DataColumn(COLUMN_TYPE.DATE, "date"),
@@ -80,8 +81,8 @@ class AnkiTest(unittest.TestCase):
                 aw.set_table(table)
                 aw._write_records(self.ds)
                 ar.set_table(table)
-                records = ar.read_records_sync()
-                tsv = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/anki_write_all.tsv"}, "anki_write_all"))
+                records = ar.read_records_sync().records
+                tsv = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/anki_write_all.tsv", "absolute_path": self.abs_path}, "anki_write_all"))
                 tsv.create_table_sync(records)
 
             with self.subTest():
@@ -91,11 +92,11 @@ class AnkiTest(unittest.TestCase):
                 aw.set_table(table)
                 
                 it = aw._write_records(self.ds, 1)
-                while it.handle != None:
+                while not it.done:
                     it = aw._write_records(self.ds, 1, it)
                 ar.set_table(table)
-                records = ar.read_records_sync()
-                tsv = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/anki_write_it.tsv"}, "anki_write_it"))
+                records = ar.read_records_sync().records
+                tsv = TsvWriter(TableSpec(DATA_SOURCE.TSV, {"file_path": "./test_output/anki_write_it.tsv", "absolute_path": self.abs_path}, "anki_write_it"))
                 tsv.create_table_sync(records)
 
 if __name__ == '__main__':
